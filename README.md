@@ -1,4 +1,8 @@
-# zashboard
+# zashboard — sing-box fork
+
+This fork of [Zephyruso/zashboard](https://github.com/Zephyruso/zashboard) restores
+sing-box Clash API support and preserves the local IPv6 identity fixes.
+See [sing-box support and fork releases](./docs/sing-box-support.md).
 
 <p align="center">
   <img src="./readme/pc.png" height="300">
@@ -16,41 +20,31 @@ Browser support
 
 ## **Online**
 
-You can access the online zashboard at the following link:
-
-- [Online zashboard](http://board.zash.run.place)
+Serve this fork through your sing-box `/ui/` endpoint using the release archive below.
+The upstream hosted dashboard does not contain these fork changes.
 
 ## **Download**
 
 You can download the zashboard files here:
 
-> [!WARNING]
-> Support for sing-box has been removed. [Learn more about this
-> decision](./docs/sing-box-deprecation.md).
+This fork detects sing-box automatically through its Clash API version response.
+Unsupported backend controls are hidden; supported proxy, DNS and dashboard actions remain available.
 
 release:
 
-- [dist.zip (7.81 MB)](https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip) – Includes better font-loading experience.
-- [dist-no-fonts.zip (1.44 MB)](https://github.com/Zephyruso/zashboard/releases/latest/download/dist-no-fonts.zip) – No fonts included, uses system fonts only.
-- [dist-cdn-fonts.zip (1.44 MB)](https://github.com/Zephyruso/zashboard/releases/latest/download/dist-cdn-fonts.zip) – Fonts loaded from unpkg.com, If you have trouble connecting to unpkg.com, **you may experience slow page loading**.
-- [dist-firasans-only.zip (1.67 MB)](https://github.com/Zephyruso/zashboard/releases/latest/download/dist-firasans-only.zip) – Only with FiraSans Font
-- [dist-misans-only.zip (3.54 MB)](https://github.com/Zephyruso/zashboard/releases/latest/download/dist-misans-only.zip) – Only with MiSans Font
-- [dist-pingfang-only.zip (3.25 MB)](https://github.com/Zephyruso/zashboard/releases/latest/download/dist-pingfang-only.zip) – Only with PingFang Font
-- [dist-sarasa-only.zip (3.67 MB)](https://github.com/Zephyruso/zashboard/releases/latest/download/dist-sarasa-only.zip) – Only with Sarasa Font
+- [dist.zip (7.81 MB)](https://github.com/ravy-alt/zashboard/releases/latest/download/dist.zip) – Includes better font-loading experience.
+- [dist-no-fonts.zip (1.44 MB)](https://github.com/ravy-alt/zashboard/releases/latest/download/dist-no-fonts.zip) – No fonts included, uses system fonts only.
+- [dist-cdn-fonts.zip (1.44 MB)](https://github.com/ravy-alt/zashboard/releases/latest/download/dist-cdn-fonts.zip) – Fonts loaded from unpkg.com, If you have trouble connecting to unpkg.com, **you may experience slow page loading**.
+- [dist-firasans-only.zip (1.67 MB)](https://github.com/ravy-alt/zashboard/releases/latest/download/dist-firasans-only.zip) – Only with FiraSans Font
+- [dist-misans-only.zip (3.54 MB)](https://github.com/ravy-alt/zashboard/releases/latest/download/dist-misans-only.zip) – Only with MiSans Font
+- [dist-pingfang-only.zip (3.25 MB)](https://github.com/ravy-alt/zashboard/releases/latest/download/dist-pingfang-only.zip) – Only with PingFang Font
+- [dist-sarasa-only.zip (3.67 MB)](https://github.com/ravy-alt/zashboard/releases/latest/download/dist-sarasa-only.zip) – Only with Sarasa Font
 
-dev:
-
-- [gh-pages.zip (7.81 MB)](https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip)
-- [gh-pages-no-fonts.zip (1.44 MB)](https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages-no-fonts.zip)
-- [gh-pages-cdn-fonts.zip (1.44 MB)](https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages-cdn-fonts.zip)
-- [gh-pages-firasans-only.zip (1.67 MB)](https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages-firasans-only.zip)
-- [gh-pages-misans-only.zip (3.54 MB)](https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages-misans-only.zip)
-- [gh-pages-pingfang-only.zip (3.25 MB)](https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages-pingfang-only.zip)
-- [gh-pages-sarasa-only.zip (3.67 MB)](https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages-sarasa-only.zip)
+Every push to `codex/sing-box-support` publishes a verified release, including all seven font variants and SHA256SUMS.
 
 ## **Docker Setup**
 
-To run zashboard via Docker, use the following command:
+The following image is maintained by upstream and does not include this fork's changes. This fork currently publishes web archives, not Docker images:
 
 ```
 docker run -d -p 80:80 ghcr.io/zephyruso/zashboard:latest
@@ -110,7 +104,7 @@ For example, with this mihomo configuration on remote server `192.168.1.1`:
 
 ```yaml
 external-ui: ui
-external-ui-url: https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip
+external-ui-url: https://github.com/ravy-alt/zashboard/releases/latest/download/dist.zip
 external-controller: 0.0.0.0:9090
 secret: ''
 ```

@@ -5,7 +5,7 @@ import { isProxyGroup } from '@/helper'
 import { showNotification } from '@/helper/notification'
 import { notifyRequestError } from '@/helper/request-error'
 import { i18n } from '@/i18n'
-import { independentLatencyTest, IPv6test, speedtestMode, speedtestTimeout } from '@/store/settings'
+import { IPv6test, speedtestMode, speedtestTimeout } from '@/store/settings'
 import pLimit from 'p-limit'
 import { fetchProxies } from './actions'
 import {
@@ -15,6 +15,7 @@ import {
   getNowProxyNodeName,
   getProviderNameByProxy,
   getTestUrl,
+  independentLatencyEnabled,
   ipv6Cache,
   isLatencyTestable,
   proxyGroupList,
@@ -49,11 +50,11 @@ const latencyTestForSingle = async (proxyName: string, url: string, timeout: num
 
   if (session !== ipv6Cache.session) throw new Error('Backend changed during latency test')
 
-  return await testNodeLatency(independentLatencyTest.value ? proxyName : now, url, timeout)
+  return await testNodeLatency(independentLatencyEnabled.value ? proxyName : now, url, timeout)
 }
 
 const getNameForNotification = (name: string, url: string) => {
-  if (independentLatencyTest.value) {
+  if (independentLatencyEnabled.value) {
     return `${name}\n@${url}`
   }
 
@@ -235,7 +236,7 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
 export const allProxiesLatencyTest = async () => {
   if (!can('latencyTest')) return
 
-  if (independentLatencyTest.value || !can('nodeLatencyTest')) {
+  if (independentLatencyEnabled.value || !can('nodeLatencyTest')) {
     const limit = pLimit(3)
 
     return await Promise.all(

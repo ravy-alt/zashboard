@@ -107,7 +107,7 @@ import { computed, ref } from 'vue'
 const model = defineModel<Omit<Backend, 'uuid'>>({ required: true })
 
 const backendTypeOptions = [
-  { value: 'clash' as BackendType, label: 'Clash' },
+  { value: 'clash' as BackendType, label: 'Clash / sing-box' },
   { value: 'dae' as BackendType, label: 'dae' },
 ]
 

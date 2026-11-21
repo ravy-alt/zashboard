@@ -1,5 +1,6 @@
 import type { Config, DNSQuery } from '@/types'
 import { ref } from 'vue'
+import { can, withCapability } from './backend'
 import { driver } from './driver'
 
 export const defaultConfig: Config = {
@@ -28,16 +29,19 @@ export const fetchConfigs = async () => {
 }
 
 export const updateConfigs = async (cfg: Record<string, string | boolean | object | number>) => {
-  await driver().config.patch(cfg)
-  fetchConfigs()
+  const modeOnly = Object.keys(cfg).length === 1 && typeof cfg.mode === 'string'
+  const capability = modeOnly && can('modeSwitch') ? 'modeSwitch' : 'configPatch'
+  await withCapability(capability, () => driver().config.patch(cfg))
+  await fetchConfigs()
 }
 
-export const reloadConfigs = () => driver().config.reload()
+export const reloadConfigs = () => withCapability('reloadConfigs', () => driver().config.reload())
 
 export const loadConfigs = (config: { path?: string; payload?: string }, force?: boolean) =>
-  driver().config.load(config, force)
+  withCapability('updateConfigs', () => driver().config.load(config, force))
 
-export const updateGeoData = () => driver().config.updateGeoData()
+export const updateGeoData = () =>
+  withCapability('updateGeoDatabase', () => driver().config.updateGeoData())
 
 export const flushFakeIP = () => driver().config.flushFakeIP()
 

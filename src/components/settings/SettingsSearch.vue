@@ -104,6 +104,7 @@
 </template>
 
 <script setup lang="ts">
+import { isSettingSupported } from '@/helper/settings-support'
 import { isSettingHidden, isSettingRendered } from '@/helper/settings'
 import {
   SETTINGS_CATEGORIES,
@@ -152,6 +153,7 @@ const matches = computed<SearchResult[]>(() => {
   return SETTINGS_CATEGORIES.flatMap((category) =>
     category.items.flatMap((item) =>
       (item.searchEntries ?? [{ anchorKey: item.key, label: item.label }]).flatMap((entry) => {
+        if (!isSettingSupported(item.key) || !isSettingSupported(entry.anchorKey)) return []
         const haystack = [
           t(entry.label),
           t(item.label),

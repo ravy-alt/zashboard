@@ -86,6 +86,7 @@
 </template>
 
 <script setup lang="ts">
+import { isSettingSupported } from '@/helper/settings-support'
 import DialogWrapper from '@/components/common/DialogWrapper.vue'
 import {
   applyMinimalPreset,
@@ -112,7 +113,9 @@ const orderedCategories = computed(() => {
   ]
   return order.flatMap((key) => {
     const category = SETTINGS_CATEGORIES.find((item) => item.key === key)
-    return category ? [category] : []
+    return category
+      ? [{ ...category, items: category.items.filter((item) => isSettingSupported(item.key)) }]
+      : []
   })
 })
 </script>

@@ -10,7 +10,7 @@
           <span class="bg-secondary h-2 w-2 rounded-full"></span>
         </span>
         <a
-          href="https://github.com/Zephyruso/zashboard"
+          :href="`https://github.com/${DASHBOARD_REPOSITORY}`"
           target="_blank"
           class="text-lg font-semibold"
         >
@@ -35,6 +35,7 @@
 
 <script setup lang="ts">
 import { isUIUpdateAvailable, zashboardVersion } from '@/assembly/version'
+import { DASHBOARD_REPOSITORY } from '@/constant/repository'
 import GeneralSettings from './GeneralSettings.vue'
 import StyleSettings from './StyleSettings.vue'
 

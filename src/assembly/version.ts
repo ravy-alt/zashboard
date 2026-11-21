@@ -1,14 +1,16 @@
 import DaeLogo from '@/assets/images/dae.jpg'
 import HonkLogo from '@/assets/images/honk.svg'
 import MetacubexLogo from '@/assets/images/metacubex.jpg'
+import SingBoxLogo from '@/assets/images/sing-box.svg'
 import { MIHOMO, MIHOMO_CHANNEL } from '@/constant'
+import { DASHBOARD_REPOSITORY } from '@/constant/repository'
 import { fetchWithLocalCache } from '@/helper/cache'
 import { getRequestErrorMessage } from '@/helper/request-error'
 import { autoUpgradeCore, autoUpgradeDashboard, checkUpgradeCore } from '@/store/settings'
 import { activeBackend } from '@/store/setup'
 import type { Backend } from '@/types'
 import { computed, nextTick, ref } from 'vue'
-import { can, core, Core, resetCore } from './backend'
+import { can, core, Core, resetCore, withCapability } from './backend'
 import { fetchCapabilities, resetCapabilities } from './capabilities'
 import { driver } from './driver'
 
@@ -27,14 +29,17 @@ export type BackendProbe = {
 export const backendProbe = ref<BackendProbe | undefined>()
 
 const detectCore = (versionString: string): Core => {
-  if (/\bhonk\b/i.test(versionString)) return Core.Honk
   if (activeBackend.value?.type === 'dae') return Core.Dae
+  if (/^sing-box\b/i.test(versionString.trim())) return Core.SingBox
+  if (/\bhonk\b/i.test(versionString)) return Core.Honk
   if (!versionString) return Core.Unknown
   return Core.Mihomo
 }
 
 export const coreBrand = computed(() => {
   switch (core.value) {
+    case Core.SingBox:
+      return { logo: SingBoxLogo, url: 'https://github.com/SagerNet/sing-box' }
     case Core.Honk:
       return { logo: HonkLogo, url: 'https://github.com/Glassyiris/honk' }
     case Core.Dae:
@@ -63,12 +68,12 @@ export const mihomo = computed<[MIHOMO, string] | undefined>(() => {
   }
 })
 
-export const restartCore = () => driver().system.restartCore()
+export const restartCore = () => withCapability('coreRestart', () => driver().system.restartCore())
 
 export const upgradeCore = (channel: 'release' | 'alpha' | 'auto') =>
-  driver().system.upgradeCore(channel)
+  withCapability('coreUpgrade', () => driver().system.upgradeCore(channel))
 
-export const upgradeUI = () => driver().system.upgradeUI()
+export const upgradeUI = () => withCapability('dashboardUpgrade', () => driver().system.upgradeUI())
 
 const probeBackendVersion = async (backend: Backend) => {
   const startAt = Date.now()
@@ -147,13 +152,13 @@ const fetchIsCoreUpdateAvailable = async () => {
 
 export const checkUIUpdate = async () => {
   const { tag_name } = await fetchWithLocalCache<{ tag_name: string }>(
-    'https://api.github.com/repos/Zephyruso/zashboard/releases/latest',
+    `https://api.github.com/repos/${DASHBOARD_REPOSITORY}/releases/latest`,
     zashboardVersion.value,
   )
 
   isUIUpdateAvailable.value = Boolean(tag_name && tag_name !== `v${zashboardVersion.value}`)
 
-  if (isUIUpdateAvailable.value && autoUpgradeDashboard.value) {
+  if (isUIUpdateAvailable.value && autoUpgradeDashboard.value && can('dashboardUpgrade')) {
     upgradeUI().catch(() => {})
   }
 }

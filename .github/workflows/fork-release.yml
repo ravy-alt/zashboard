@@ -1,0 +1,126 @@
+name: Build and release fork
+
+on:
+  push:
+    branches: [codex/sing-box-support]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=$(node -p 'require("./package.json").version')
+          version="${base}-sing-box.${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:8}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm test:ipv6
+      - run: pnpm test:ipv6-browser
+      - run: pnpm test:sing-box
+
+  build:
+    needs: [version, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        font:
+          - { key: all, suffix: '' }
+          - { key: cdn, suffix: '-cdn-fonts' }
+          - { key: firasans, suffix: '-firasans-only' }
+          - { key: misans, suffix: '-misans-only' }
+          - { key: pingfang, suffix: '-pingfang-only' }
+          - { key: sarasa, suffix: '-sarasa-only' }
+          - { key: none, suffix: '-no-fonts' }
+    env:
+      HUSKY: '0'
+      FONT: ${{ matrix.font.key }}
+      ZASHBOARD_VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and package dashboard
+        run: |
+          set -euo pipefail
+          pnpm build
+          test -s dist/index.html
+          cp LICENSE dist/LICENSE
+          zip -qr 'dist${{ matrix.font.suffix }}.zip' dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dashboard-${{ matrix.font.key }}
+          path: dist${{ matrix.font.suffix }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          pattern: dashboard-*
+          path: release
+          merge-multiple: true
+      - name: Verify all font variants and generate checksums
+        run: python3 .github/verify-dashboard-release.py release
+      - name: Publish latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "sing-box-compatible zashboard, built from $GITHUB_SHA." \
+            'Includes all seven upstream font variants and SHA256SUMS.' \
+            'Use dist.zip with sing-box external_ui_download_url.' \
+            > "$RUNNER_TEMP/release-notes.txt"
+          gh release create "v$VERSION" release/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "zashboard $VERSION" --notes-file "$RUNNER_TEMP/release-notes.txt" --latest

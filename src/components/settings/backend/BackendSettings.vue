@@ -255,7 +255,7 @@ const hasVisibleNetworkSettings = computed(
 )
 const hasVisibleUpgradeSettings = computed(
   () =>
-    can('configPatch') &&
+    can('coreUpdateCheck') &&
     !!configs.value &&
     !activeBackend.value?.disableUpgradeCore &&
     (isVisibleCheckUpgrade.value || (checkUpgradeCore.value && isVisibleAutoUpgrade.value)),

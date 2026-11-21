@@ -29,7 +29,7 @@ const font = process.env.FONT || 'all'
 // https://vite.dev/config/
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(version),
+    __APP_VERSION__: JSON.stringify(process.env.ZASHBOARD_VERSION || version),
     __COMMIT_ID__: JSON.stringify(getGitCommitId()),
     __FONT__: JSON.stringify(font),
   },

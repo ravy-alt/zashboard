@@ -7,10 +7,6 @@ import { launchChrome } from './lib/chrome.mjs'
 import { findFreePort } from './lib/ports.mjs'
 
 const vite = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' })
-vite.middlewares.use('/_ipv6-test', (_req, res) => {
-  res.setHeader('Content-Type', 'text/html')
-  res.end('<html><body><div id="app"></div></body></html>')
-})
 await vite.listen()
 let chrome, browser
 try {
@@ -19,9 +15,13 @@ try {
   browser = await connectBrowser(port)
   const page = await browser.newPage({})
   const origin = `http://127.0.0.1:${vite.httpServer.address().port}`
-  await page.goto(origin + '/_ipv6-test')
+  await page.goto(origin + '/test/browser.html')
   assert.notEqual(
-    await waitFor(async () => (await page.evaluate('location.origin')) === origin),
+    await waitFor(
+      async () =>
+        (await page.evaluate('location.origin')) === origin &&
+        (await page.evaluate('typeof __APP_VERSION__ !== \"undefined\"')),
+    ),
     null,
   )
   const results = await page.evaluate(`(async () => {

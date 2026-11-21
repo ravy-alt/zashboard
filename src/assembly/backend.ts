@@ -6,6 +6,7 @@ import { daeCapabilities } from './capabilities'
 export enum Core {
   Mihomo = 'mihomo',
   Honk = 'honk',
+  SingBox = 'sing-box',
   Dae = 'dae',
   Unknown = 'unknown',
 }
@@ -35,6 +36,7 @@ export type Cap =
   | 'independentLatency'
   | 'coreUpdateCheck'
   | 'configPatch'
+  | 'modeSwitch'
   | 'traceLogLevel'
   | 'silentLogLevel'
   | 'runtimeStats'
@@ -69,6 +71,26 @@ export type Cap =
 type Caps = Partial<Record<Cap, boolean>>
 
 const clashCaps = computed<Caps>(() => {
+  // sing-box exposes a subset of Clash API. In particular, /configs accepts
+  // unsupported fields without applying them, so a successful request is not
+  // evidence that the operation is supported.
+  if (core.value === Core.SingBox) {
+    return {
+      dashboardUpgrade: true,
+      modeSwitch: true,
+      latencyTest: true,
+      proxyProviderUpdate: true,
+      proxyProviderHealthCheck: true,
+      flushDNSCache: true,
+      flushFakeIP: true,
+      dnsQuery: true,
+      connectionsClose: true,
+      customTestUrl: true,
+      nodeLatencyTest: true,
+      traceLogLevel: true,
+    }
+  }
+
   const mihomo = core.value === Core.Mihomo
   const honk = core.value === Core.Honk
   const mihomoOrForkCore = mihomo || isForkCoreOverride.value
@@ -84,6 +106,7 @@ const clashCaps = computed<Caps>(() => {
     independentLatency: mihomoOrForkCore,
     coreUpdateCheck: mihomo,
     configPatch: mihomo,
+    modeSwitch: mihomo,
 
     traceLogLevel: honk,
     silentLogLevel: mihomo,
@@ -153,3 +176,6 @@ export const can = (cap: Cap): boolean => {
 
   return soft.value[cap] === true
 }
+
+export const withCapability = <T>(cap: Cap, action: () => Promise<T>): Promise<T> =>
+  can(cap) ? action() : Promise.reject(new Error('Operation is not supported by this backend'))

@@ -55,8 +55,12 @@ export const speedtestUrlWithDefault = computed(() => {
   return speedtestUrl.value || TEST_URL
 })
 
+export const independentLatencyEnabled = computed(
+  () => can('independentLatency') && independentLatencyTest.value,
+)
+
 export const getTestUrl = (groupName?: string) => {
-  if (!groupName || !independentLatencyTest.value) {
+  if (!groupName || !independentLatencyEnabled.value) {
     return speedtestUrlWithDefault.value
   }
 
@@ -120,7 +124,7 @@ const getLatencyMap = (testUrl: string) => {
 }
 
 const getTestUrlBucket = (groupName?: string) => {
-  if (groupName && independentLatencyTest.value && can('independentLatency')) {
+  if (groupName && independentLatencyEnabled.value) {
     return getTestUrl(groupName)
   }
 
@@ -135,7 +139,7 @@ export const getLatencyByName = (proxyName: string, groupName?: string) => {
 }
 
 export const getHistoryByName = (proxyName: string, groupName?: string) => {
-  if (groupName && independentLatencyTest.value && can('independentLatency')) {
+  if (groupName && independentLatencyEnabled.value) {
     const proxyNode = proxyMap.value[proxyName]
     const url = getTestUrl(groupName)
 

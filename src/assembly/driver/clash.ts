@@ -37,6 +37,7 @@ import {
   upgradeCoreAPI,
   upgradeUIAPI,
 } from '@/api/clash'
+import { can } from '@/assembly/backend'
 import { proxyMap } from '@/assembly/proxies/state'
 import { PROXY_TYPE } from '@/constant'
 import type { ClashConnectionRawMessage, Connection, Log } from '@/types'
@@ -202,10 +203,13 @@ export const clashDriver: Driver = {
 
   rules: {
     fetch: async () => {
-      const [ruleRes, providerRes] = await Promise.all([fetchRulesAPI(), fetchRuleProvidersAPI()])
+      const [ruleRes, providerRes] = await Promise.all([
+        fetchRulesAPI(),
+        can('ruleProviders') ? fetchRuleProvidersAPI() : undefined,
+      ])
 
       return {
-        rules: ruleRes.data.rules.map((rule) => {
+        rules: (ruleRes.data.rules ?? []).map((rule) => {
           const proxy = rule.proxy
 
           return {
@@ -213,7 +217,7 @@ export const clashDriver: Driver = {
             proxy: proxy.startsWith('route(') ? proxy.slice(6, -1) : proxy,
           }
         }),
-        providers: Object.values(providerRes.data.providers),
+        providers: Object.values(providerRes?.data.providers ?? {}),
       }
     },
     updateProvider: (name) => done(updateRuleProviderAPI(name)),
