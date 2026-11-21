@@ -1,15 +1,53 @@
 import { can } from '@/assembly/backend'
-import { useStorage } from '@/composables/use-storage'
 import { NOT_CONNECTED, PROXY_TYPE, TEST_URL } from '@/constant'
 import { groupTestUrls, independentLatencyTest, speedtestUrl } from '@/store/settings'
+import { activeBackend } from '@/store/setup'
 import type { Proxy, ProxyProvider } from '@/types'
 import { last } from 'lodash'
-import { computed, effectScope, ref, toValue, type ComputedRef, type MaybeRefOrGetter } from 'vue'
+import {
+  computed,
+  effectScope,
+  ref,
+  toValue,
+  watch,
+  type ComputedRef,
+  type MaybeRefOrGetter,
+} from 'vue'
+import { IPv6Cache, ipv6Identities, type IPv6Probe } from './ipv6-cache'
 
 export const proxyGroupList = ref<string[]>([])
 export const proxyMap = ref<Record<string, Proxy>>({})
-export const IPv6Map = useStorage<Record<string, boolean>>('cache/ipv6-map', {})
+export const IPv6Map = ref<Record<string, boolean>>({})
 export const proxyProviederList = ref<ProxyProvider[]>([])
+export const ipv6Cache = new IPv6Cache()
+
+// Include the endpoint and credentials: editing a saved backend keeps its UUID.
+watch(
+  () => {
+    const b = activeBackend.value
+    return JSON.stringify(
+      b && [b.uuid, b.type, b.protocol, b.host, b.port, b.secondaryPath, b.username, b.password],
+    )
+  },
+  (backend) => {
+    ipv6Cache.switchBackend(backend ?? '')
+    IPv6Map.value = {}
+    proxyMap.value = {}
+    proxyProviederList.value = []
+    proxyGroupList.value = []
+  },
+  { immediate: true, flush: 'sync' },
+)
+
+export const reconcileIPv6 = () => {
+  ipv6Cache.reconcile(ipv6Identities(proxyMap.value, proxyProviederList.value))
+  IPv6Map.value = ipv6Cache.snapshot()
+}
+
+export const finishIPv6Probe = (ticket: IPv6Probe | undefined, supported: boolean) => {
+  ipv6Cache.finish(ticket, supported)
+  IPv6Map.value = ipv6Cache.snapshot()
+}
 
 export type LatencyMap = Map<string, number>
 

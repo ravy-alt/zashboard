@@ -42,6 +42,7 @@ export type History = {
 }[]
 
 export type Proxy = {
+  'x-sing-box-revision'?: string
   id?: string
   name: string
   type: string
@@ -74,6 +75,7 @@ export type SubscriptionInfo = {
 }
 
 export type ProxyProvider = {
+  generation?: number
   subscriptionInfo?: SubscriptionInfo
   id?: string
   name: string

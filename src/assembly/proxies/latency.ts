@@ -9,12 +9,13 @@ import { independentLatencyTest, IPv6test, speedtestMode, speedtestTimeout } fro
 import pLimit from 'p-limit'
 import { fetchProxies } from './actions'
 import {
+  finishIPv6Probe,
   getHistoryByName,
   getLatencyByName,
   getNowProxyNodeName,
   getProviderNameByProxy,
   getTestUrl,
-  IPv6Map,
+  ipv6Cache,
   isLatencyTestable,
   proxyGroupList,
   proxyMap,
@@ -33,14 +34,20 @@ const testNodeLatency = (proxyName: string, url: string, timeout: number) => {
 
 const latencyTestForSingle = async (proxyName: string, url: string, timeout: number) => {
   const now = getNowProxyNodeName(proxyName)
+  const session = ipv6Cache.session
 
   if (IPv6test.value) {
+    const ticket = ipv6Cache.begin(now)
     try {
-      IPv6Map.value[now] = (await testNodeLatency(now, IPV6_TEST_URL, 2000)) > NOT_CONNECTED
+      const delay = await testNodeLatency(now, IPV6_TEST_URL, 2000)
+      await fetchProxies()
+      finishIPv6Probe(ticket, delay > NOT_CONNECTED)
     } catch {
-      IPv6Map.value[now] = false
+      finishIPv6Probe(ticket, false)
     }
   }
+
+  if (session !== ipv6Cache.session) throw new Error('Backend changed during latency test')
 
   return await testNodeLatency(independentLatencyTest.value ? proxyName : now, url, timeout)
 }
@@ -93,6 +100,7 @@ const testLatencyOneByOneWithTip = async (
   url = speedtestUrlWithDefault.value,
   groupName?: string,
 ) => {
+  const session = ipv6Cache.session
   const total = nodes.length
   let testDone = 0
   let testFailed = 0
@@ -100,6 +108,7 @@ const testLatencyOneByOneWithTip = async (
   await Promise.allSettled(
     nodes.map((name) =>
       limiter(async () => {
+        if (session !== ipv6Cache.session) return
         try {
           const delay = await latencyTestForSingle(
             name,
@@ -107,27 +116,30 @@ const testLatencyOneByOneWithTip = async (
             Math.min(2000, speedtestTimeout.value),
           )
 
-          setHistory(name, delay, groupName)
+          if (session === ipv6Cache.session) setHistory(name, delay, groupName)
         } catch {
           testFailed++
-          setHistory(name, NOT_CONNECTED, groupName)
+          if (session === ipv6Cache.session) setHistory(name, NOT_CONNECTED, groupName)
         } finally {
           testDone++
-          showNotification({
-            content: 'testFinishedTip',
-            key: TIP_KEY + tipName,
-            params: {
-              name: getNameForNotification(tipName, url),
-              total: total.toString(),
-              number: testDone.toString(),
-            },
-            type: 'alert-info',
-            timeout: 0,
-          })
+          if (session === ipv6Cache.session)
+            showNotification({
+              content: 'testFinishedTip',
+              key: TIP_KEY + tipName,
+              params: {
+                name: getNameForNotification(tipName, url),
+                total: total.toString(),
+                number: testDone.toString(),
+              },
+              type: 'alert-info',
+              timeout: 0,
+            })
         }
       }),
     ),
   )
+
+  if (session !== ipv6Cache.session) return
 
   await fetchProxies().catch(() => {})
 
@@ -149,6 +161,7 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
   if (!can('latencyTest')) return
 
   const proxyNode = proxyMap.value[proxyGroupName]
+  const session = ipv6Cache.session
   const all = (proxyNode.all ?? []).filter(isLatencyTestable)
   const url = getTestUrl(proxyGroupName)
 
@@ -170,6 +183,7 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
   const timeout = Math.max(5000, speedtestTimeout.value)
 
   if (IPv6test.value) {
+    const tickets = all.map((name) => [name, ipv6Cache.begin(getNowProxyNodeName(name))] as const)
     try {
       const ipv6LatencyResult = await driver().proxies.testGroup(
         proxyGroupName,
@@ -177,15 +191,19 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
         timeout,
       )
 
-      all?.forEach((name) => {
-        IPv6Map.value[getNowProxyNodeName(name)] = ipv6LatencyResult[name] > NOT_CONNECTED
+      await fetchProxies()
+      tickets.forEach(([name, ticket]) => {
+        if (ticket?.name === getNowProxyNodeName(name)) {
+          finishIPv6Probe(ticket, ipv6LatencyResult[name] > NOT_CONNECTED)
+        }
       })
     } catch {
-      all?.forEach((name) => {
-        IPv6Map.value[getNowProxyNodeName(name)] = false
+      tickets.forEach(([, ticket]) => {
+        finishIPv6Probe(ticket, false)
       })
     }
   }
+  if (session !== ipv6Cache.session) return
   try {
     await driver().proxies.testGroup(proxyGroupName, url, timeout)
   } catch (e) {

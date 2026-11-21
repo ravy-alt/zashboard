@@ -1,30 +1,35 @@
 import { activeConnections, connectionAccessor, disconnectById } from '@/assembly/connections'
 import { driver } from '@/assembly/driver'
-import { GLOBAL, IPV6_TEST_URL, NOT_CONNECTED, PROXY_TYPE } from '@/constant'
+import { GLOBAL, PROXY_TYPE } from '@/constant'
 import { notifyRequestError } from '@/helper/request-error'
-import { automaticDisconnection, iconReflectList, IPv6test } from '@/store/settings'
+import { automaticDisconnection, iconReflectList } from '@/store/settings'
 
 import type { Proxy } from '@/types'
-import { last } from 'lodash'
 import { initSmartWeights } from './smart'
-import { IPv6Map, proxyGroupList, proxyMap, proxyProviederList } from './state'
+import { ipv6Cache, proxyGroupList, proxyMap, proxyProviederList, reconcileIPv6 } from './state'
 
-const getIPv6FromExtra = (proxy: Proxy) => {
-  const ipv6History = proxy.extra?.[IPV6_TEST_URL]?.history
-
-  return (last(ipv6History)?.delay ?? NOT_CONNECTED) > NOT_CONNECTED
-}
-
-let fetchTime = 0
+let fetchSequence = 0
+let latestFetch = Promise.resolve()
 
 export const fetchProxies = async () => {
-  const nowTime = Date.now()
+  let pending = fetchProxySnapshot()
+  latestFetch = pending
+  // A probe must validate against an applied snapshot, not an older request
+  // discarded because another refresh is still in flight.
+  for (;;) {
+    await pending
+    if (pending === latestFetch) return
+    pending = latestFetch
+  }
+}
 
-  fetchTime = nowTime
+const fetchProxySnapshot = async () => {
+  const sequence = ++fetchSequence
+  const session = ipv6Cache.session
 
   const { proxies, providers } = await driver().proxies.fetch()
 
-  if (fetchTime !== nowTime) {
+  if (fetchSequence !== sequence || ipv6Cache.session !== session) {
     return
   }
 
@@ -36,6 +41,12 @@ export const fetchProxies = async () => {
       proxy['provider-name'] ||= provider.name
       allProviderProxies[proxy.name] = proxy
     }
+  }
+
+  // Some Clash backends only attach provider metadata in /providers/proxies.
+  // Keep that identity when /proxies supplies the same node's current state.
+  for (const [name, proxy] of Object.entries(proxies)) {
+    proxy['provider-name'] ||= allProviderProxies[name]?.['provider-name']
   }
 
   proxyMap.value = {
@@ -62,6 +73,7 @@ export const fetchProxies = async () => {
     .map((proxy) => proxy.name)
 
   proxyProviederList.value = providers
+  reconcileIPv6()
 
   let includesSmartGroup = false
 
@@ -70,9 +82,6 @@ export const fetchProxies = async () => {
 
     if (iconReflect) {
       proxyMap.value[name].icon = iconReflect.icon
-    }
-    if (IPv6test.value && getIPv6FromExtra(proxy)) {
-      IPv6Map.value[name] = true
     }
 
     if (proxy.type.toLowerCase() === PROXY_TYPE.Smart) {

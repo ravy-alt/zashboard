@@ -19,6 +19,8 @@
     "prepare": "husky",
     "preview": "vite preview",
     "test:bench": "node test/bench.mjs",
+    "test:ipv6": "node --experimental-strip-types --test test/ipv6-cache.test.mjs",
+    "test:ipv6-browser": "node test/ipv6-browser.mjs",
     "test:mock": "node test/mock-server.mjs",
     "test:setup": "node test/setup.mjs",
     "test:verify": "node test/verify.mjs",
