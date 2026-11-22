@@ -42,6 +42,8 @@ export type History = {
 }[]
 
 export type Proxy = {
+  udpTest?: UDPTestOptions
+  udpHistory?: Record<string, UDPTestResult>
   'x-sing-box-revision'?: string
   id?: string
   name: string
@@ -65,6 +67,20 @@ export type Proxy = {
   testUrl?: string
   'dialer-proxy'?: string
   'provider-name'?: string
+}
+
+export type UDPTestOptions = {
+  server: string
+  port: number
+  domain: string
+  timeout: number
+}
+
+export type UDPTestResult = UDPTestOptions & {
+  time: string
+  delay: number
+  alive: boolean
+  outbound: string
 }
 
 export type SubscriptionInfo = {

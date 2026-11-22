@@ -43,6 +43,7 @@ export type Cap =
   | 'silentLogLevel'
   | 'runtimeStats'
   | 'latencyTest'
+  | 'udpProbe'
   | 'proxyProviderUpdate'
   | 'proxyProviderHealthCheck'
   | 'ruleProviders'
@@ -80,6 +81,7 @@ const clashCaps = computed<Caps>(() => {
   if (core.value === Core.SingBox) {
     return {
       dnsManagement: singBoxCapabilities.value.includes('dns-management-v1'),
+      udpProbe: singBoxCapabilities.value.includes('udp-probe-v1'),
       dashboardUpgrade: true,
       modeSwitch: true,
       latencyTest: true,

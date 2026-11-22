@@ -22,6 +22,7 @@ import {
   proxyMap,
   speedtestUrlWithDefault,
 } from './state'
+import { testGroupUDP, testUDP } from './udp'
 
 const testNodeLatency = (proxyName: string, url: string, timeout: number) => {
   const providerName = getProviderNameByProxy(proxyName)
@@ -33,7 +34,12 @@ const testNodeLatency = (proxyName: string, url: string, timeout: number) => {
   return driver().proxies.testNode(proxyName, url, timeout)
 }
 
-const latencyTestForSingle = async (proxyName: string, url: string, timeout: number) => {
+const latencyTestForSingle = async (
+  proxyName: string,
+  url: string,
+  timeout: number,
+  groupName?: string,
+) => {
   const now = getNowProxyNodeName(proxyName)
   const session = ipv6Cache.session
 
@@ -50,11 +56,15 @@ const latencyTestForSingle = async (proxyName: string, url: string, timeout: num
 
   if (session !== ipv6Cache.session) throw new Error('Backend changed during latency test')
 
-  return await testNodeLatency(
+  const tcp = testNodeLatency(
     independentLatencyEnabled.value || core.value === Core.SingBox ? proxyName : now,
     url,
     timeout,
   )
+  const results = await Promise.allSettled([tcp, testUDP(proxyName, groupName)])
+  const tcpResult = results[0]
+  if (tcpResult.status === 'rejected') throw tcpResult.reason
+  return tcpResult.value
 }
 
 const getNameForNotification = (name: string, url: string) => {
@@ -69,11 +79,12 @@ export const proxyLatencyTest = async (
   proxyName: string,
   url = getTestUrl(proxyMap.value[proxyName]?.all ? proxyName : undefined),
   timeout = speedtestTimeout.value,
+  groupName?: string,
 ) => {
   if (!can('latencyTest')) return
 
   try {
-    await latencyTestForSingle(proxyName, url, timeout)
+    await latencyTestForSingle(proxyName, url, timeout, groupName)
   } catch {
     showNotification({
       content: 'testFailedTip',
@@ -116,7 +127,7 @@ const testLatencyOneByOneWithTip = async (
       limiter(async () => {
         if (session !== ipv6Cache.session) return
         try {
-          const delay = await latencyTestForSingle(name, url, speedtestTimeout.value)
+          const delay = await latencyTestForSingle(name, url, speedtestTimeout.value, groupName)
 
           if (session === ipv6Cache.session) setHistory(name, delay, groupName)
         } catch {
@@ -231,7 +242,11 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
   }
   if (session !== ipv6Cache.session) return
   try {
-    await driver().proxies.testGroup(proxyGroupName, url, timeout)
+    const results = await Promise.allSettled([
+      driver().proxies.testGroup(proxyGroupName, url, timeout),
+      testGroupUDP(all, proxyGroupName),
+    ])
+    if (results[0].status === 'rejected') throw results[0].reason
   } catch (e) {
     notifyRequestError(e)
     return

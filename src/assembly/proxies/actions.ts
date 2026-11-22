@@ -17,6 +17,7 @@ import {
   reconcileIPv6,
   speedtestUrlWithDefault,
 } from './state'
+import { testGroupUDP } from './udp'
 
 let fetchSequence = 0
 let latestFetch = Promise.resolve()
@@ -139,8 +140,19 @@ export const handlerProxySelect = async (proxyGroupName: string, proxyName: stri
 
 export const updateProxyProvider = (name: string) => driver().proxies.updateProvider(name)
 
-export const proxyProviderHealthCheck = (name: string) =>
-  driver().proxies.healthCheckProvider(name, getTestUrl(name), speedtestTimeout.value)
+export const proxyProviderHealthCheck = async (name: string) => {
+  const nodes =
+    proxyProviederList.value
+      .find((provider) => provider.name === name)
+      ?.proxies.map((node) => node.name) ?? []
+  const results = await Promise.allSettled([
+    driver().proxies.healthCheckProvider(name, getTestUrl(name), speedtestTimeout.value),
+    testGroupUDP(nodes),
+  ])
+  await fetchProxies()
+  if (results[0].status === 'rejected') throw results[0].reason
+  return results[0].value
+}
 
 export const fetchSmartWeights = () => driver().proxies.fetchSmartWeights()
 

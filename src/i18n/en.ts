@@ -1,4 +1,10 @@
 const en = {
+  udpProbe: {
+    test: 'Test UDP',
+    passed: 'UDP DNS query succeeded',
+    failed: 'UDP DNS query failed',
+    unknown: 'UDP not tested',
+  },
   dns: 'DNS',
   dnsPage: {
     finalHint: 'Used when no DNS rule matches',

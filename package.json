@@ -25,6 +25,7 @@
     "test:mock": "node test/mock-server.mjs",
     "test:setup": "node test/setup.mjs",
     "test:sing-box": "node test/sing-box-browser.mjs",
+    "test:udp": "node test/udp-browser.mjs",
     "test:verify": "node test/verify.mjs",
     "type-check": "vue-tsc --build --force"
   },

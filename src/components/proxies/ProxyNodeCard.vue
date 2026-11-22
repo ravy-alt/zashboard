@@ -31,6 +31,12 @@
       >
         {{ typeDescription }}
       </span>
+      <UDPTag
+        :name="node.name"
+        :group-name="groupName"
+        :active="active"
+        class="mx-1"
+      />
       <LatencyTag
         :class="[isSmallCard && 'h-4! w-8! rounded-md!', 'shrink-0']"
         :name="node.name"
@@ -58,6 +64,7 @@ import { computed, inject, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LatencyTag from './LatencyTag.vue'
 import ProxyIcon from './ProxyIcon.vue'
+import UDPTag from './UDPTag.vue'
 
 const { t } = useI18n()
 const props = defineProps<{
@@ -82,9 +89,7 @@ const typeDescription = computed(() => {
   const smartUsage = smartWeightsMap.value[props.groupName ?? '']?.[props.name]
   const smartDesc = smartUsage ? t(smartUsage) : ''
   const isV6 = IPv6test.value && getIPv6ByName(node.value.name) ? 'IPv6' : ''
-  const isUDP = node.value.udp ? (node.value.xudp ? 'xudp' : 'udp') : ''
-
-  return [type, isUDP, smartDesc, isV6].filter(Boolean).join(isSmallCard.value ? '/' : ' / ')
+  return [type, smartDesc, isV6].filter(Boolean).join(isSmallCard.value ? '/' : ' / ')
 })
 
 const scrollNodeIntoView = inject(scrollNodeIntoViewKey, null)
@@ -108,7 +113,12 @@ const handlerLatencyTest = async () => {
 
   isLatencyTesting.value = true
   try {
-    await proxyLatencyTest(props.name, props.groupName ? getTestUrl(props.groupName) : undefined)
+    await proxyLatencyTest(
+      props.name,
+      props.groupName ? getTestUrl(props.groupName) : undefined,
+      undefined,
+      props.groupName,
+    )
     isLatencyTesting.value = false
   } catch {
     isLatencyTesting.value = false
