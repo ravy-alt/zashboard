@@ -25,6 +25,7 @@ export interface DnsCacheEntry {
   class: number
   clientSubnet?: string
   answers: string[]
+  answerData?: string[]
   addresses: string[]
   rcode: string
   expiresAt: string | null
@@ -41,6 +42,7 @@ export interface DnsCacheFrame {
 
 export interface DnsServer {
   scope?: string
+  icon?: string
   tag: string
   type: string
   address: string

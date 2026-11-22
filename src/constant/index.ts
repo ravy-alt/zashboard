@@ -1,3 +1,4 @@
+import DnsIcon from '@/components/icons/DnsIcon.vue'
 import {
   ArrowsRightLeftIcon,
   Cog6ToothIcon,
@@ -260,7 +261,7 @@ export const ROUTE_ICON_MAP = {
   [ROUTE_NAME.connections]: ArrowsRightLeftIcon,
   [ROUTE_NAME.rules]: SwatchIcon,
   [ROUTE_NAME.logs]: DocumentTextIcon,
-  [ROUTE_NAME.dns]: GlobeAltIcon,
+  [ROUTE_NAME.dns]: DnsIcon,
   [ROUTE_NAME.settings]: Cog6ToothIcon,
   [ROUTE_NAME.setup]: CubeTransparentIcon,
 }

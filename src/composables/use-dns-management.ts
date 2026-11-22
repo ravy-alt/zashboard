@@ -14,24 +14,35 @@ export const useDnsManagement = () => {
   const streamRevision = ref(0)
   const error = ref('')
   const busy = ref(false)
+  const refreshing = ref(false)
   const supported = computed(() => can('dnsManagement'))
   let controller = new AbortController()
   let metadataTimer: ReturnType<typeof setTimeout> | undefined
   let disposed = false
+  let metadataRevision = 0
 
   const refreshMetadata = async (signal = controller.signal) => {
+    if (signal.aborted || disposed) return
+    const revision = ++metadataRevision
+    refreshing.value = true
     try {
       const [nextServers, nextRules] = await Promise.all([
         fetchDnsServers(signal),
         fetchDnsRules(signal),
       ])
-      if (signal.aborted) return
+      if (signal.aborted || revision !== metadataRevision) return
       servers.value = nextServers
       rules.value = nextRules
       error.value = ''
     } catch (e) {
-      if (!signal.aborted) error.value = getRequestErrorMessage(e)
+      if (!signal.aborted && revision === metadataRevision) error.value = getRequestErrorMessage(e)
+    } finally {
+      if (!signal.aborted && revision === metadataRevision) refreshing.value = false
     }
+  }
+
+  const refreshServers = () => {
+    if (activeBackend.value && supported.value) return refreshMetadata()
   }
 
   watch(
@@ -45,6 +56,7 @@ export const useDnsManagement = () => {
       rules.value = []
       error.value = ''
       busy.value = false
+      refreshing.value = false
       const poll = async () => {
         await refreshMetadata(signal)
         if (!signal.aborted && !disposed) metadataTimer = setTimeout(poll, 5000)
@@ -111,5 +123,17 @@ export const useDnsManagement = () => {
     controller.abort()
     clearTimeout(metadataTimer)
   })
-  return { entries, servers, rules, paused, connected, error, busy, supported, remove }
+  return {
+    entries,
+    servers,
+    rules,
+    paused,
+    connected,
+    error,
+    busy,
+    refreshing,
+    supported,
+    remove,
+    refreshServers,
+  }
 }

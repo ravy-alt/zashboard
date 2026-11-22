@@ -29,38 +29,48 @@
           </button>
         </div>
         <template v-if="tab === 'cache' && supported">
-          <span
-            class="text-xs opacity-60"
-            role="status"
-            >{{
-              paused
-                ? t('dnsPage.paused')
-                : connected
-                  ? t('dnsPage.live')
-                  : t('dnsPage.reconnecting')
-            }}</span
-          >
           <button
-            class="btn btn-ghost btn-square btn-sm"
+            class="btn btn-circle btn-sm"
+            :title="t('dnsPage.tableSettings')"
+            :aria-label="t('dnsPage.tableSettings')"
+            @click="tableSettingsOpen = true"
+          >
+            <WrenchScrewdriverIcon class="size-4" />
+          </button>
+          <button
+            class="btn btn-circle btn-sm"
             :title="t('dnsPage.clearAll')"
             :aria-label="t('dnsPage.clearAll')"
             :disabled="busy"
             @click="remove({})"
           >
-            <TrashIcon class="size-5" />
+            <TrashIcon class="size-4" />
           </button>
           <button
-            class="btn btn-ghost btn-square btn-sm"
+            class="btn btn-circle btn-sm"
             :title="paused ? t('dnsPage.resume') : t('dnsPage.pause')"
             :aria-label="paused ? t('dnsPage.resume') : t('dnsPage.pause')"
             @click="paused = !paused"
           >
             <component
               :is="paused ? PlayIcon : PauseIcon"
-              class="size-5"
+              class="size-4"
             />
           </button>
         </template>
+        <button
+          v-if="tab === 'servers' && supported"
+          class="btn btn-circle btn-sm"
+          :title="t('refresh')"
+          :aria-label="t('refresh')"
+          :disabled="refreshing"
+          @click="refreshServers()"
+        >
+          <ArrowPathIcon
+            class="size-4"
+            :class="{ 'animate-spin': refreshing }"
+          />
+        </button>
       </div>
       <div
         v-if="tab === 'cache' && supported"
@@ -68,7 +78,7 @@
       >
         <select
           v-model="serverFilter"
-          class="select select-sm max-w-64"
+          class="select select-sm w-32 shrink-0 sm:w-64"
           :aria-label="t('dnsPage.serverFilter')"
         >
           <option value="">{{ t('dnsPage.allServers') }}</option>
@@ -92,6 +102,11 @@
         >
       </div>
     </CtrlsBar>
+    <DialogWrapper
+      v-model="tableSettingsOpen"
+      :title="t('dnsPage.tableSettings')"
+      ><DnsTableSettings
+    /></DialogWrapper>
     <div
       class="flex min-h-0 flex-1 flex-col"
       :style="padding"
@@ -110,103 +125,12 @@
         >
           {{ error }}
         </p>
-        <template v-if="tab === 'cache'">
-          <p class="px-3 py-2 text-xs opacity-60">{{ t('dnsPage.latestRequest') }}</p>
-          <div
-            ref="scrollElement"
-            class="min-h-0 flex-1 overflow-auto"
-            data-page-swipe-ignore
-          >
-            <div class="min-w-[1600px] text-xs">
-              <div class="dns-grid bg-base-200 sticky top-0 z-10 gap-3 px-3 py-3 font-semibold">
-                <span>{{ t('dnsPage.domain') }}</span
-                ><span>{{ t('dnsPage.queryType') }}</span
-                ><span>{{ t('dnsPage.answers') }}</span> <span>{{ t('dnsPage.source') }}</span
-                ><span>{{ t('dnsPage.sourcePort') }}</span
-                ><span>{{ t('dnsPage.destination') }}</span
-                ><span>{{ t('dnsPage.destinationPort') }}</span> <span>{{ t('dnsPage.rule') }}</span
-                ><span>{{ t('dnsPage.server') }}</span
-                ><span>{{ t('dnsPage.expires') }}</span
-                ><span>{{ t('dnsPage.lastUsed') }}</span
-                ><span></span>
-              </div>
-              <div
-                v-if="!filteredEntries.length"
-                class="p-8 text-center opacity-50"
-              >
-                {{ t('dnsPage.empty') }}
-              </div>
-              <div :style="{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }">
-                <div
-                  v-for="row in virtualRows"
-                  :key="String(row.key)"
-                  class="dns-grid border-base-300 hover:bg-base-200/40 absolute top-0 left-0 w-full items-center gap-3 border-b px-3"
-                  :style="{ height: `${row.size}px`, transform: `translateY(${row.start}px)` }"
-                  data-testid="dns-cache-row"
-                >
-                  <span
-                    class="truncate font-medium"
-                    :title="filteredEntries[row.index].domain"
-                    >{{ filteredEntries[row.index].domain }}</span
-                  >
-                  <span
-                    >{{ filteredEntries[row.index].type
-                    }}<small
-                      v-if="filteredEntries[row.index].clientSubnet"
-                      class="block opacity-60"
-                      :title="filteredEntries[row.index].clientSubnet"
-                      >ECS</small
-                    ></span
-                  >
-                  <span
-                    class="line-clamp-3 break-all"
-                    :title="filteredEntries[row.index].answers.join('\n')"
-                    >{{ answers(filteredEntries[row.index]) }}</span
-                  >
-                  <span
-                    class="truncate"
-                    :title="filteredEntries[row.index].request.source"
-                    >{{ filteredEntries[row.index].request.source || '—' }}</span
-                  >
-                  <span>{{ filteredEntries[row.index].request.sourcePort || '—' }}</span>
-                  <span
-                    class="truncate"
-                    :title="filteredEntries[row.index].request.destination"
-                    >{{ filteredEntries[row.index].request.destination || '—' }}</span
-                  >
-                  <span>{{ filteredEntries[row.index].request.destinationPort || '—' }}</span>
-                  <span
-                    class="line-clamp-3 break-all"
-                    :title="ruleLabel(filteredEntries[row.index].request)"
-                    >{{ ruleLabel(filteredEntries[row.index].request) }}</span
-                  >
-                  <span
-                    class="line-clamp-3 break-all"
-                    :title="serverLabel(filteredEntries[row.index])"
-                    >{{ serverLabel(filteredEntries[row.index]) }}</span
-                  >
-                  <span :title="formatDate(filteredEntries[row.index].expiresAt)">{{
-                    expiry(filteredEntries[row.index])
-                  }}</span>
-                  <span
-                    >{{ formatDate(filteredEntries[row.index].request.lastUsed)
-                    }}<small class="block opacity-60">{{
-                      t('dnsPage.hits', { count: filteredEntries[row.index].request.hits })
-                    }}</small></span
-                  >
-                  <button
-                    class="btn btn-ghost btn-square btn-xs"
-                    :disabled="busy"
-                    :aria-label="`${t('dnsPage.delete')} ${filteredEntries[row.index].domain} ${filteredEntries[row.index].type}`"
-                    @click="remove({ id: filteredEntries[row.index].id })"
-                  >
-                    <TrashIcon class="size-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
+        <DnsCacheTable
+          v-if="tab === 'cache'"
+          :entries="filteredEntries"
+          :busy="busy"
+          @remove="(id) => remove({ id })"
+        />
         <div
           v-else
           class="flex-1 overflow-auto p-3"
@@ -272,77 +196,32 @@
                 >{{ result.error }}</span
               >
               <template v-else-if="result.data">
-                <p class="mt-1 font-mono break-all">
-                  {{
-                    result.data.Answer?.map((answer) => answer.data).join(' · ') ||
-                    t('dnsPage.noAnswer')
-                  }}
-                </p>
+                <div class="mt-1 space-y-1 font-mono break-all">
+                  <div
+                    v-for="(answer, index) in result.data.Answer"
+                    :key="index"
+                  >
+                    {{ answer.data }}
+                  </div>
+                  <span v-if="!result.data.Answer?.length">{{ t('dnsPage.noAnswer') }}</span>
+                </div>
                 <p class="mt-1 text-xs opacity-70">
                   {{ t('dnsPage.server') }}: {{ result.data.Server || '—' }} ·
-                  {{ t('dnsPage.rule') }}: {{ ruleLabel(result.data.Trace) }} · RCODE:
+                  {{ t('dnsPage.rule') }}: {{ dnsRule(result.data.Trace, t).text }} · RCODE:
                   {{ result.data.Status
                   }}<span v-if="result.data.Trace.cached"> · {{ t('dnsPage.cacheHit') }}</span>
                 </p>
               </template>
             </div>
           </form>
-          <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-3">
-            <article
+          <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-3">
+            <DnsServerCard
               v-for="server in servers"
               :key="serverKey(server)"
-              class="base-container p-4"
-              data-testid="dns-server-card"
-            >
-              <div class="mb-3 flex items-center gap-2">
-                <h2
-                  class="min-w-0 flex-1 truncate font-semibold"
-                  :title="qualified(server.tag, server.scope)"
-                >
-                  {{ qualified(server.tag, server.scope) }}
-                </h2>
-                <span class="badge badge-sm">{{ transportLabel(server.type) }}</span
-                ><button
-                  class="btn btn-ghost btn-square btn-sm"
-                  :disabled="busy"
-                  :aria-label="`${t('dnsPage.clearServer')} ${server.tag}`"
-                  @click="remove({ scope: server.scope ?? '', server: server.tag })"
-                >
-                  <TrashIcon class="size-4" />
-                </button>
-              </div>
-              <dl class="space-y-2 text-sm">
-                <div>
-                  <dt class="opacity-60">{{ t('dnsPage.address') }}</dt>
-                  <dd class="break-all">{{ server.address || '—' }}</dd>
-                </div>
-                <div>
-                  <dt class="opacity-60">{{ t('dnsPage.dialer') }}</dt>
-                  <dd class="break-all">
-                    {{ server.dialerChain?.join(' → ') || server.detour || t('dnsPage.direct') }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="opacity-60">{{ t('dnsPage.resolver') }}</dt>
-                  <dd>{{ server.resolver || '—' }}</dd>
-                </div>
-                <div v-if="server.type === 'race'">
-                  <dt class="opacity-60">{{ t('dnsPage.members') }}</dt>
-                  <dd class="break-all">{{ server.dependencies.join(' · ') }}</dd>
-                </div>
-                <div class="flex justify-between">
-                  <dt class="opacity-60">{{ t('dnsPage.cacheCount') }}</dt>
-                  <dd>
-                    {{ server.cacheCount
-                    }}<span
-                      v-if="server.default"
-                      class="ml-2 text-xs opacity-60"
-                      >{{ t('dnsPage.defaultServer') }}</span
-                    >
-                  </dd>
-                </div>
-              </dl>
-            </article>
+              :server="server"
+              :busy="busy"
+              @clear="remove({ scope: server.scope ?? '', server: server.tag })"
+            />
           </div>
           <section class="base-container mt-3 p-4">
             <h2 class="mb-3 font-semibold">{{ t('dnsPage.rules') }}</h2>
@@ -352,10 +231,20 @@
                 :key="`${rule.scope}:${rule.index}`"
                 class="flex flex-wrap gap-2 py-3"
               >
-                <span class="opacity-50"
-                  >{{ rule.index < 0 ? t('dnsPage.defaultServer') : rule.index + 1
-                  }}<span v-if="rule.scope"> · {{ rule.scope }}</span></span
-                ><span class="min-w-0 flex-1 break-all">{{ rule.match || t('dnsPage.any') }}</span
+                <span
+                  v-if="rule.index >= 0 || rule.scope"
+                  class="opacity-50"
+                  >{{ rule.index < 0 ? '' : `#${rule.index + 1}`
+                  }}<span
+                    v-if="rule.scope"
+                    class="ml-1"
+                    >{{ rule.scope }}</span
+                  ></span
+                ><span class="min-w-0 flex-1 break-all">{{
+                  rule.match === 'default'
+                    ? t('dnsPage.defaultRule')
+                    : rule.match || t('dnsPage.any')
+                }}</span
                 ><code class="break-all">{{ rule.action }}</code>
               </li>
             </ol>
@@ -367,28 +256,46 @@
 </template>
 
 <script setup lang="ts">
-import {
-  queryDns,
-  type DnsCacheEntry,
-  type DnsQueryResult,
-  type DnsRequestInfo,
-  type DnsServer,
-} from '@/api/dns'
+import { queryDns, type DnsQueryResult, type DnsServer } from '@/api/dns'
 import CtrlsBar from '@/components/common/CtrlsBar.vue'
+import DialogWrapper from '@/components/common/DialogWrapper.vue'
+import DnsCacheTable from '@/components/dns/DnsCacheTable.vue'
+import DnsServerCard from '@/components/dns/DnsServerCard.vue'
+import DnsTableSettings from '@/components/dns/DnsTableSettings.vue'
+import { dnsAnswerLines, dnsDomain, dnsRule } from '@/helper/dns-display'
 import { useDnsManagement } from '@/composables/use-dns-management'
 import { usePaddingForViews } from '@/composables/use-padding-for-views'
 import { getRequestErrorMessage } from '@/helper/request-error'
 import { activeBackend } from '@/store/setup'
-import { PauseIcon, PlayIcon, TrashIcon } from '@heroicons/vue/24/outline'
-import { useVirtualizer } from '@tanstack/vue-virtual'
+import {
+  ArrowPathIcon,
+  PauseIcon,
+  PlayIcon,
+  TrashIcon,
+  WrenchScrewdriverIcon,
+} from '@heroicons/vue/24/outline'
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const { padding } = usePaddingForViews({ offsetTop: 0, offsetBottom: 0 })
-const { entries, servers, rules, paused, connected, error, busy, supported, remove } =
-  useDnsManagement()
+const {
+  entries,
+  servers,
+  rules,
+  paused,
+  error,
+  busy,
+  refreshing,
+  supported,
+  remove,
+  refreshServers,
+} = useDnsManagement()
 const tab = ref('cache')
+watch(tab, (value) => {
+  if (value === 'servers') void refreshServers()
+})
+const tableSettingsOpen = ref(false)
 const serverFilter = ref('')
 const search = ref('')
 const domain = ref('')
@@ -427,75 +334,21 @@ const filterServers = computed(() => {
 })
 const filteredEntries = computed(() => {
   const term = search.value.trim().toLocaleLowerCase()
-  return [...entries.value.values()]
-    .filter(
-      (entry) =>
-        (!serverFilter.value ||
-          serverKey({ tag: entry.server, scope: entry.scope }) === serverFilter.value) &&
-        (!term ||
-          [
-            entry.domain,
-            ...entry.addresses,
-            ...entry.answers,
-            entry.request.source,
-            entry.request.destination,
-          ].some((value) => value?.toLocaleLowerCase().includes(term))),
-    )
-    .sort(
-      (a, b) =>
-        a.domain.localeCompare(b.domain) ||
-        a.type.localeCompare(b.type) ||
-        a.id.localeCompare(b.id),
-    )
+  return [...entries.value.values()].filter(
+    (entry) =>
+      (!serverFilter.value ||
+        serverKey({ tag: entry.server, scope: entry.scope }) === serverFilter.value) &&
+      (!term ||
+        [
+          dnsDomain(entry.domain),
+          ...dnsAnswerLines(entry),
+          ...entry.addresses,
+          ...entry.answers,
+          entry.request.source,
+          entry.request.destination,
+        ].some((value) => value?.toLocaleLowerCase().includes(term))),
+  )
 })
-const scrollElement = ref<HTMLElement>()
-const virtualizer = useVirtualizer(
-  computed(() => ({
-    count: filteredEntries.value.length,
-    getScrollElement: () => scrollElement.value ?? null,
-    estimateSize: () => 88,
-    overscan: 8,
-    getItemKey: (index: number) => filteredEntries.value[index].id,
-  })),
-)
-const virtualRows = computed(() => virtualizer.value.getVirtualItems())
-watch([search, serverFilter, tab], () => {
-  scrollElement.value?.scrollTo({ top: 0 })
-})
-const answers = (entry: DnsCacheEntry) =>
-  entry.addresses.length ? entry.addresses.join(' · ') : entry.answers.join(' · ') || entry.rcode
-const formatDate = (date?: string | null) =>
-  !date || date.startsWith('0001-') ? '—' : new Date(date).toLocaleString()
-const now = ref(Date.now())
-const clock = setInterval(() => {
-  now.value = Date.now()
-}, 1000)
-const expiry = (entry: DnsCacheEntry) =>
-  !entry.expiresAt
-    ? t('dnsPage.noExpiry')
-    : entry.stale
-      ? t('dnsPage.stale')
-      : `${Math.max(0, Math.ceil((Date.parse(entry.expiresAt) - now.value) / 1000))} s`
-const ruleLabel = (info: DnsRequestInfo) => {
-  const purpose =
-    info.purpose && info.purpose !== 'client' ? t(`dnsPage.purpose.${info.purpose}`) : ''
-  const rule =
-    info.rule === 'default'
-      ? t('dnsPage.defaultServer')
-      : info.rule === 'manual-server'
-        ? t('dnsPage.manualServer')
-        : info.rule === 'specified-server'
-          ? t('dnsPage.specifiedServer')
-          : info.rule || '—'
-  return [purpose, rule].filter(Boolean).join(' · ')
-}
-const serverLabel = (entry: DnsCacheEntry) =>
-  qualified(entry.server, entry.scope) +
-  (entry.request.server && entry.request.server !== entry.server
-    ? ` → ${entry.request.server}`
-    : '')
-const transportLabel = (type: string) =>
-  ({ https: 'DoH', tls: 'DoT', h3: 'DoH3', quic: 'DoQ', udp: 'UDP', tcp: 'TCP' })[type] ?? type
 let queryController: AbortController | undefined
 const resetQuery = () => {
   queryController?.abort()
@@ -531,16 +384,6 @@ const runQuery = async () => {
   }
 }
 onScopeDispose(() => {
-  clearInterval(clock)
   queryController?.abort()
 })
 </script>
-
-<style scoped>
-.dns-grid {
-  display: grid;
-  grid-template-columns:
-    180px 60px minmax(180px, 1.4fr) 120px 65px 120px 65px minmax(180px, 1.2fr)
-    145px 90px 150px 28px;
-}
-</style>

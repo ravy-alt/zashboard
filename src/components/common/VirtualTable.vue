@@ -1,10 +1,17 @@
 <template>
   <div
     ref="parentRef"
-    class="base-container m-3 h-full overflow-auto backdrop-blur-none!"
+    class="base-container isolate m-3 h-full overflow-auto backdrop-blur-none!"
+    data-page-swipe-ignore
   >
-    <div class="table-glass min-w-min">
-      <table :class="['table', sizeOfTable, tableClass]">
+    <div
+      class="table-glass"
+      :class="resizable ? 'min-w-max' : 'min-w-min'"
+    >
+      <table
+        :class="['table', sizeOfTable, tableClass, resizable && 'table-fixed']"
+        :style="resizable ? { width: `${tanstackTable.getCenterTotalSize()}px` } : undefined"
+      >
         <thead
           class="bg-base-100 border-base-300/60 sticky top-0 z-10 border-b backdrop-blur-none!"
         >
@@ -16,8 +23,19 @@
               v-for="header in headerGroup.headers"
               :key="header.id"
               :colSpan="header.colSpan"
+              :data-column="header.column.id"
+              :aria-sort="
+                header.column.getIsSorted() === 'asc'
+                  ? 'ascending'
+                  : header.column.getIsSorted() === 'desc'
+                    ? 'descending'
+                    : undefined
+              "
+              :style="resizable ? { width: `${header.getSize()}px` } : undefined"
               :class="[
+                'relative',
                 inheritedStyle,
+                pinFirstColumn && header.index === 0 && 'pinned-td sticky left-0 z-20',
                 header.column.columnDef.meta?.headerClass,
                 header.column.getCanSort() && 'cursor-pointer select-none',
               ]"
@@ -38,6 +56,15 @@
                   class="h-4 w-4"
                 />
               </div>
+              <div
+                v-if="resizable && header.column.getCanResize()"
+                class="dns-column-resizer hover:bg-primary/50 absolute top-0 right-0 h-full w-1 cursor-ew-resize touch-none select-none"
+                :data-resize-column="header.column.id"
+                @dblclick.stop="header.column.resetSize()"
+                @click.stop
+                @mousedown.stop="header.getResizeHandler()($event)"
+                @touchstart.stop="header.getResizeHandler()($event)"
+              />
             </th>
           </tr>
         </thead>
@@ -61,7 +88,11 @@
             <tr
               v-for="virtualRow in virtualRows"
               :key="virtualRow.key.toString()"
-              :style="{ height: `${estimateSize}px` }"
+              :ref="dynamicRowHeight ? measureRow : undefined"
+              :data-index="virtualRow.index"
+              :data-testid="rowTestId"
+              :data-row-id="rows[virtualRow.index].id"
+              :style="dynamicRowHeight ? undefined : { height: `${estimateSize}px` }"
               class="hover:bg-(--table-hover)!"
               :class="[
                 virtualRow.index % 2 === 0 && 'table-row-stripe',
@@ -70,10 +101,15 @@
               @click="emits('rowClick', rows[virtualRow.index].original)"
             >
               <td
-                v-for="cell in rows[virtualRow.index].getVisibleCells()"
+                v-for="(cell, cellIndex) in rows[virtualRow.index].getVisibleCells()"
                 :key="cell.id"
-                class="max-w-xl truncate text-sm whitespace-nowrap"
-                :class="cell.column.columnDef.meta?.cellClass"
+                :data-column="cell.column.id"
+                class="truncate text-sm whitespace-nowrap"
+                :class="[
+                  !resizable && 'max-w-xl',
+                  cell.column.columnDef.meta?.cellClass,
+                  pinFirstColumn && cellIndex === 0 && 'pinned-td sticky left-0 z-20',
+                ]"
                 :title="cellTitle(cell)"
                 @contextmenu="handleCellRightClick($event, cell)"
               >
@@ -110,11 +146,12 @@ import {
   useVueTable,
   type Cell,
   type ColumnDef,
+  type ColumnSizingState,
   type SortingState,
   type VisibilityState,
 } from '@tanstack/vue-table'
 import { useVirtualizer } from '@tanstack/vue-virtual'
-import { computed, ref } from 'vue'
+import { computed, ref, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(
@@ -128,6 +165,11 @@ const props = withDefaults(
     columnVisibility?: VisibilityState
     rowClass?: (row: T) => string | undefined
     tableClass?: string
+    resizable?: boolean
+    dynamicRowHeight?: boolean
+    rowTestId?: string
+    getRowId?: (row: T) => string
+    pinFirstColumn?: boolean
   }>(),
   {
     estimateSize: 36,
@@ -142,6 +184,7 @@ const emits = defineEmits<{
 const { t } = useI18n()
 
 const sorting = useStorage<SortingState>(props.sortingKey, () => props.initialSorting ?? [])
+const columnSizing = useStorage<ColumnSizingState>(`${props.sortingKey}/column-widths`, {})
 
 const tanstackTable = useVueTable({
   get data() {
@@ -151,12 +194,21 @@ const tanstackTable = useVueTable({
     return props.columns
   },
   state: {
+    get columnSizing() {
+      return columnSizing.value
+    },
     get sorting() {
       return sorting.value
     },
     get columnVisibility() {
       return props.columnVisibility ?? {}
     },
+  },
+  getRowId: (row, index) => props.getRowId?.(row) ?? String(index),
+  columnResizeMode: 'onChange',
+  defaultColumn: { minSize: 60 },
+  onColumnSizingChange: (updater) => {
+    columnSizing.value = isFunction(updater) ? updater(columnSizing.value) : updater
   },
   onSortingChange: (updater) => {
     sorting.value = isFunction(updater) ? updater(sorting.value) : updater
@@ -171,6 +223,7 @@ const parentRef = ref<HTMLElement | null>(null)
 const rowVirtualizerOptions = computed(() => {
   return {
     count: rows.value.length,
+    getItemKey: (index: number) => rows.value[index].id,
     getScrollElement: () => parentRef.value,
     estimateSize: () => props.estimateSize,
     overscan: props.overscan,
@@ -178,6 +231,9 @@ const rowVirtualizerOptions = computed(() => {
 })
 
 const rowVirtualizer = useVirtualizer(rowVirtualizerOptions)
+const measureRow = (element: Element | ComponentPublicInstance | null) => {
+  rowVirtualizer.value.measureElement(element instanceof HTMLElement ? element : null)
+}
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
 const paddingTop = computed(() => virtualRows.value[0]?.start ?? 0)
 const paddingBottom = computed(() => {
@@ -253,3 +309,15 @@ const handleCellRightClick = (event: MouseEvent, cell: Cell<T, unknown>) => {
   }
 }
 </script>
+
+<style scoped>
+.pinned-td {
+  background-color: var(--color-base-100);
+}
+tr.table-row-stripe > .pinned-td {
+  background-image: linear-gradient(var(--table-stripe), var(--table-stripe));
+}
+tr:hover > .pinned-td {
+  background-image: linear-gradient(var(--table-hover), var(--table-hover));
+}
+</style>
