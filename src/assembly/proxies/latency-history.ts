@@ -15,7 +15,7 @@ export const selectedLeafName = (nodes: Record<string, Node>, name: string): str
     const node = nodes[name]
     if (!node) return undefined
     if (!node.all) return name
-    if (!node.now || node.now === name) return undefined
+    if (!node.now || node.now === name || !node.all.includes(node.now)) return undefined
     name = node.now
   }
   return undefined

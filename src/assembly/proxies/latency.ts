@@ -37,7 +37,7 @@ const latencyTestForSingle = async (proxyName: string, url: string, timeout: num
   const now = getNowProxyNodeName(proxyName)
   const session = ipv6Cache.session
 
-  if (IPv6test.value && proxyMap.value[now] && !proxyMap.value[now].all) {
+  if (IPv6test.value && proxyMap.value[now] && !isProxyGroup(now)) {
     const ticket = ipv6Cache.begin(now)
     try {
       const delay = await testNodeLatency(now, IPV6_TEST_URL, timeout)
@@ -163,8 +163,10 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
   if (!can('latencyTest')) return
 
   const proxyNode = proxyMap.value[proxyGroupName]
+  if (!proxyNode) return
   const session = ipv6Cache.session
   const all = (proxyNode.all ?? []).filter(isLatencyTestable)
+  if (all.length === 0) return
   const url = getTestUrl(proxyGroupName)
 
   if (
@@ -188,7 +190,7 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
     // An IPv6 badge belongs to a specific leaf, never to a Smart group's
     // fallback response. Pin and deduplicate the selected leaves first.
     const leaves = [...new Set(all.map(getNowProxyNodeName))].filter(
-      (name) => proxyMap.value[name] && !proxyMap.value[name].all,
+      (name) => proxyMap.value[name] && !isProxyGroup(name),
     )
     const limit = pLimit(5)
     await Promise.allSettled(

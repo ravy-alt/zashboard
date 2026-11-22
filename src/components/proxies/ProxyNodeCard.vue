@@ -52,7 +52,7 @@ import {
   scrollNodeIntoViewKey,
 } from '@/helper/proxies-scroll'
 import { proxyLatencyTest } from '@/assembly/proxies'
-import { getIPv6ByName, getTestUrl, proxyMap } from '@/assembly/proxies'
+import { getIPv6ByName, getTestUrl, isGroupSelectable, proxyMap } from '@/assembly/proxies'
 import { IPv6test, proxyCardSize, proxySortType, truncateProxyName } from '@/store/settings'
 import { computed, inject, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -93,7 +93,10 @@ const latencyTipAnimationClass = computed(() =>
 )
 
 const cardClass = computed(() => [
-  'relative flex cursor-pointer flex-col items-start rounded-md hover:shadow-sm',
+  'relative flex flex-col items-start rounded-md',
+  !props.groupName || isGroupSelectable(props.groupName)
+    ? 'cursor-pointer hover:shadow-sm'
+    : 'cursor-default',
   props.active
     ? 'proxy-active-card bg-primary/95 sm:hover:bg-primary'
     : 'bg-base-200 sm:hover:bg-base-300/50',

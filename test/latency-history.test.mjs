@@ -38,6 +38,7 @@ test('missing or failed URLs never borrow another URL or stale history', () => {
 
 test('missing, empty, cyclic, deleted and reintroduced selections have no stale latency', () => {
   const map = nodes()
+  map.C.all = ['x', 'A']
   map.C.now = 'A'
   assert.equal(selectedLeafName(map, 'A'), undefined)
   map.C.now = ''
@@ -49,4 +50,16 @@ test('missing, empty, cyclic, deleted and reintroduced selections have no stale 
   assert.equal(scopedHistory(map, 'A', 'a'), undefined)
   map.x.extra.a = bucket(55)
   assert.equal(scopedHistory(map, 'A', 'a')[0].delay, 55)
+})
+
+test('a removed selection cannot resolve through a surviving node with the same name', () => {
+  const map = nodes()
+  map.B.all = ['y']
+  assert.equal(selectedLeafName(map, 'A'), undefined)
+  assert.equal(scopedHistory(map, 'A', 'a'), undefined)
+  map.B.all = []
+  assert.equal(selectedLeafName(map, 'B'), undefined)
+  map.B.now = 'y'
+  map.B.all = ['y']
+  assert.equal(scopedHistory(map, 'A', 'a')[0].delay, 11)
 })

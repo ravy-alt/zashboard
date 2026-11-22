@@ -1,6 +1,7 @@
 import { activeConnections, connectionAccessor, disconnectById } from '@/assembly/connections'
 import { driver } from '@/assembly/driver'
 import { GLOBAL, PROXY_TYPE } from '@/constant'
+import { isProxyGroup } from '@/helper'
 import { notifyRequestError } from '@/helper/request-error'
 import { automaticDisconnection, iconReflectList, speedtestTimeout } from '@/store/settings'
 
@@ -9,6 +10,7 @@ import { initSmartWeights } from './smart'
 import {
   getTestUrl,
   ipv6Cache,
+  isGroupSelectable,
   proxyGroupList,
   proxyMap,
   proxyProviederList,
@@ -62,7 +64,7 @@ const fetchProxySnapshot = async () => {
     ...proxies,
   }
   proxyGroupList.value = Object.values(proxies)
-    .filter((proxy) => proxy.all?.length && proxy.name !== GLOBAL)
+    .filter((proxy) => isProxyGroup(proxy.name) && proxy.name !== GLOBAL)
     .sort((prev, next) => {
       const prevIndex = sortIndex.indexOf(prev.name)
       const nextIndex = sortIndex.indexOf(next.name)
@@ -103,26 +105,35 @@ const fetchProxySnapshot = async () => {
 }
 
 export const handlerProxySelect = async (proxyGroupName: string, proxyName: string) => {
+  const session = ipv6Cache.session
   try {
     const proxyGroup = proxyMap.value[proxyGroupName]
 
-    if (proxyGroup.type.toLowerCase() === PROXY_TYPE.LoadBalance) return
+    if (!isGroupSelectable(proxyGroupName) || !proxyGroup?.all?.includes(proxyName)) return
     if (proxyGroup.now === proxyName) {
       await fetchProxies()
-      if (proxyGroup.now === proxyName) return
+      if (session !== ipv6Cache.session || proxyMap.value[proxyGroupName]?.now === proxyName) return
+      if (
+        !isGroupSelectable(proxyGroupName) ||
+        !proxyMap.value[proxyGroupName]?.all?.includes(proxyName)
+      )
+        return
     }
 
     await driver().proxies.select(proxyGroupName, proxyName)
-    proxyMap.value[proxyGroupName].now = proxyName
+    if (session !== ipv6Cache.session) return
+    // Read the core's current selection; the group or backend may have changed
+    // while the request was in flight. Never restore a deleted member locally.
+    await fetchProxies()
+    if (session !== ipv6Cache.session) return
 
     if (automaticDisconnection.value) {
       activeConnections.value
         .filter((c) => connectionAccessor().chains(c).includes(proxyGroupName))
         .forEach((c) => disconnectById(c.id).catch(() => {}))
     }
-    fetchProxies()
   } catch (e) {
-    notifyRequestError(e)
+    if (session === ipv6Cache.session) notifyRequestError(e)
   }
 }
 

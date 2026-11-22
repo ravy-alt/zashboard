@@ -14,7 +14,15 @@ import {
 import type { Connection } from '@/types'
 import { computed } from 'vue'
 
-const PROXY_GROUP_TYPES = new Set<string>(Object.values(PROXY_TYPE))
+const PROXY_GROUP_TYPES = new Set<string>([
+  PROXY_TYPE.Relay,
+  PROXY_TYPE.Selector,
+  PROXY_TYPE.Fallback,
+  PROXY_TYPE.URLTest,
+  PROXY_TYPE.SmartURLTest,
+  PROXY_TYPE.Smart,
+  PROXY_TYPE.LoadBalance,
+])
 
 export const isProxyGroup = (name: string) => {
   const proxyNode = proxyMap.value[name]
@@ -23,7 +31,7 @@ export const isProxyGroup = (name: string) => {
     return false
   }
 
-  if (proxyNode.all?.length) {
+  if (Array.isArray(proxyNode.all)) {
     return true
   }
 

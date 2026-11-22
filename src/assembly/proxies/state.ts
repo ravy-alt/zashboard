@@ -183,10 +183,21 @@ export const getHistoryByName = (proxyName: string, groupName?: string) => {
 }
 
 export const getIPv6ByName = (proxyName: string) => {
-  return IPv6Map.value[getNowProxyNodeName(proxyName)]
+  const leaf = selectedLeafName(proxyMap.value, proxyName)
+
+  return leaf ? IPv6Map.value[leaf] : undefined
 }
 
 export const getNowProxyNodeName = (name: string) => selectedLeafName(proxyMap.value, name) ?? name
+
+export const isGroupSelectable = (name: string) => {
+  const proxy = proxyMap.value[name]
+  if (!proxy) return false
+  if (proxy.selectable !== undefined) return proxy.selectable
+  const type = proxy.type.toLowerCase()
+  if (core.value === Core.SingBox) return type === PROXY_TYPE.Selector
+  return type !== PROXY_TYPE.SmartURLTest && type !== PROXY_TYPE.LoadBalance
+}
 
 export const getProxyGroupChains = (name: string) => {
   let proxyNode = proxyMap.value[name]

@@ -42,22 +42,28 @@ try {
     settings.speedtestTimeout.value = 1234
     settings.IPv6test.value = false
     const bucket = delay => ({history:[{time:new Date().toISOString(),delay}],alive:true})
-    const group = (name, now, all) => ({name,type:'URLTest',now,all,history:[],testUrl:'https://'+name+'.example/',extra:{},'x-sing-box-revision':'test:1'})
+    const group = (name, now, all) => ({name,type:name==='B'?'Selector':'SmartURLTest',now,all,history:[],testUrl:'https://'+name+'.example/',extra:{},'x-sing-box-revision':'test:1'})
     const leaf = (name, offset) => ({name,type:'Shadowsocks',history:[],extra:{
       'https://A.example/':bucket(10+offset),'https://B.example/':bucket(20+offset),'https://C.example/':bucket(30+offset)
     },'x-sing-box-revision':'test:1'})
     const nodes = {A:group('A','B',['B']),B:group('B','C',['C','y']),C:group('C','x',['x']),x:leaf('x',0),y:leaf('y',1)}
     const provider = () => ({name:'source',type:'Proxy',vehicleType:'HTTP',testUrl:'https://provider.example/',proxies:[nodes.x,nodes.y]})
     const selected = name => nodes[name]?.all ? selected(nodes[name].now) : name
-    let calls = [], failIPv6 = false
+    let calls = [], failIPv6 = false, selectHook, ipv6Hook
     axios.defaults.adapter = async request => {
       const path = request.url
-      calls.push({path,params:request.params})
+      calls.push({path,params:request.params,method:request.method})
       let data = {}
       if (path === '/proxies') data = {proxies:structuredClone(nodes)}
       else if (path === '/providers/proxies') data = {providers:{source:structuredClone(provider())}}
+      else if (request.method==='put' && path.startsWith('/proxies/')) {
+        const name=decodeURIComponent(path.split('/').at(-1)), selected=JSON.parse(request.data).name
+        if (selectHook) await selectHook(name,selected)
+        else nodes[name].now=selected
+      }
       else if (path.endsWith('/delay') || path.endsWith('/healthcheck')) {
         const url = request.params.url
+        if (url === IPV6_TEST_URL && ipv6Hook) await ipv6Hook()
         if (url === IPV6_TEST_URL && failIPv6) throw new Error('IPv6 unavailable')
         const parts = path.split('/')
         if (parts[1] === 'group') {
@@ -146,11 +152,14 @@ try {
     const {isProxyGroup} = await import('/src/helper/index.ts')
     const members=nodes.A.all
     nodes.A.all=[]; await actions.fetchProxies()
-    check('empty SmartURLTest retains group identity',isProxyGroup('A'))
+    check('empty SmartURLTest retains group identity and remains visible',isProxyGroup('A') && state.proxyGroupList.value.includes('A'))
+    calls=[];await latency.proxyGroupLatencyTest('A')
+    check('empty group does not send an invalid batch probe',calls.length===0)
     nodes.A.all=members; await actions.fetchProxies()
     calls=[]; settings.IPv6test.value=false
     await latency.proxyGroupLatencyTest('A')
     check('SmartURLTest uses core group probes with its configured URL',calls.some(c=>c.path==='/group/A/delay' && c.params.url===nodes.A.testUrl && c.params.timeout===6789))
+    nodes.B.type='URLTest'; nodes.C.type='URLTest'; await actions.fetchProxies()
     const {default:Header} = await import('/src/components/proxies/ProxyGroupHeader.vue')
     const {default:MobileHeader} = await import('/src/components/proxies/ProxyGroupHeaderForMobile.vue')
     const labels = createApp({render:()=>h('div',['A','B','C'].flatMap(name=>[
@@ -165,6 +174,53 @@ try {
       check(view+' keeps ordinary URLTest labels',text('B').includes('urltest') && !text('B').includes('smarturltest') && text('C').includes('urltest') && !text('C').includes('smarturltest'))
     }
     labels.unmount()
+
+    nodes.A.type='Selector'; nodes.A.now='B'; nodes.A.all=['B','C']
+    nodes.B.type='Selector'; nodes.B.now='C'
+    nodes.C.type='SmartURLTest'; nodes.C.now='x'; nodes.C.all=['x','y']
+    nodes.C.selectable=false; nodes.A.selectable=true; nodes.B.selectable=true
+    nodes.direct={name:'direct',type:'Direct',history:[],extra:{},now:''}
+    await actions.fetchProxies(); calls=[]
+    check('direct is a leaf and SmartURLTest is a group',!isProxyGroup('direct') && isProxyGroup('C'))
+    await actions.handlerProxySelect('C','y')
+    check('clicking an automatic group member never sends an unsupported selection',!calls.some(c=>c.method==='put') && state.proxyMap.value.C.now==='x')
+    delete nodes.C.selectable; await actions.fetchProxies(); calls=[]
+    await actions.handlerProxySelect('C','y')
+    check('older cores without selectable still keep SmartURLTest automatic',!calls.some(c=>c.method==='put'))
+    await actions.handlerProxySelect('A','C')
+    check('Selector can choose SmartURLTest and follows its leaf',calls.some(c=>c.method==='put' && c.path==='/proxies/A') && state.proxyMap.value.A.now==='C' && state.getNowProxyNodeName('A')==='x')
+    await actions.handlerProxySelect('A','B')
+    await actions.handlerProxySelect('B','y')
+    check('nested Selector changes update ancestor latency from the chosen leaf',state.getNowProxyNodeName('A')==='y' && state.getLatencyByName('A')===state.getLatencyByName('y','A'))
+    nodes.C.now='y'
+    nodes.C.all=[]
+    await actions.fetchProxies()
+    check('empty group cannot borrow a stale selection latency or IPv6 badge',state.proxyGroupList.value.includes('C') && state.getLatencyByName('C')===NOT_CONNECTED && state.getIPv6ByName('C')===undefined)
+    nodes.C.all=['x','y'];nodes.C.now='x';nodes.B.now='C'
+    await actions.fetchProxies()
+    failIPv6=false;settings.IPv6test.value=true
+    let releaseIPv6
+    ipv6Hook=()=>new Promise(resolve=>{releaseIPv6=resolve})
+    const probing=latency.proxyLatencyTest('A')
+    for(let i=0;i<100 && !releaseIPv6;i++) await new Promise(r=>setTimeout(r,5))
+    check('nested IPv6 probe starts against the pinned leaf',!!releaseIPv6)
+    nodes.C.now='y'; await actions.fetchProxies()
+    const yTicket=state.ipv6Cache.begin('y');state.finishIPv6Probe(yTicket,false)
+    ipv6Hook=undefined;releaseIPv6();await probing
+    check('selection changes during IPv6 probing never attribute the old leaf result to the new leaf',state.IPv6Map.value.x===true && state.getIPv6ByName('A')===false)
+    settings.IPv6test.value=false
+
+    let releaseSelect
+    selectHook=()=>new Promise(resolve=>{releaseSelect=resolve})
+    const selecting=actions.handlerProxySelect('A','C')
+    for(let i=0;i<100 && !releaseSelect;i++) await new Promise(r=>setTimeout(r,5))
+    check('selection request is in flight',!!releaseSelect)
+    setup.backendList.value.push({...setup.backendList.value[0],uuid:'second',port:'2'})
+    setup.activeUuid.value='second'
+    await actions.fetchProxies()
+    const newBackendSelection=state.proxyMap.value.A.now
+    releaseSelect();await selecting
+    check('late selection response cannot overwrite a different backend',state.proxyMap.value.A.now===newBackendSelection)
     return results
   })()`)
   for (const name of results) console.log(`PASS ${name}`)
