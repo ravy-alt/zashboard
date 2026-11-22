@@ -1,7 +1,7 @@
 type HistoryEntry = { time: string; delay: number }
 type Node = {
   now?: string
-  all?: string[]
+  all?: string[] | null
   history?: HistoryEntry[]
   extra?: Record<string, { history: HistoryEntry[] }>
 }
@@ -14,8 +14,8 @@ export const selectedLeafName = (nodes: Record<string, Node>, name: string): str
     seen.add(name)
     const node = nodes[name]
     if (!node) return undefined
-    if (!node.all) return name
-    if (!node.now || node.now === name || !node.all.includes(node.now)) return undefined
+    if (node.all === undefined) return name
+    if (!node.now || node.now === name || !node.all?.includes(node.now)) return undefined
     name = node.now
   }
   return undefined

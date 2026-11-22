@@ -59,6 +59,9 @@ test('a removed selection cannot resolve through a surviving node with the same 
   assert.equal(scopedHistory(map, 'A', 'a'), undefined)
   map.B.all = []
   assert.equal(selectedLeafName(map, 'B'), undefined)
+  map.B.all = null
+  assert.equal(selectedLeafName(map, 'B'), undefined)
+  assert.equal(scopedHistory(map, 'A', 'a'), undefined)
   map.B.now = 'y'
   map.B.all = ['y']
   assert.equal(scopedHistory(map, 'A', 'a')[0].delay, 11)
