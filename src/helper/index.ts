@@ -1,3 +1,4 @@
+import { can } from '@/assembly/backend'
 import { connectionAccessor } from '@/assembly/connections'
 import { proxyMap } from '@/assembly/proxies'
 import { NOT_CONNECTED, PROXY_CHAIN_DIRECTION, PROXY_TYPE, ROUTE_NAME } from '@/constant'
@@ -103,6 +104,7 @@ export const getColorForLatency = (latency: number) => {
 export const renderRoutes = computed(() =>
   Object.values(ROUTE_NAME).filter((r) => {
     if (r === ROUTE_NAME.setup) return false
+    if (r === ROUTE_NAME.dns && !can('dnsManagement')) return false
     if (!splitOverviewPage.value && r === ROUTE_NAME.overview) return false
     return true
   }),

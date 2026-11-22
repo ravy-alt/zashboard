@@ -49,6 +49,7 @@ jobs:
       - run: pnpm test:ipv6
       - run: pnpm test:ipv6-browser
       - run: pnpm test:sing-box
+      - run: pnpm test:dns
 
   build:
     needs: [version, test]

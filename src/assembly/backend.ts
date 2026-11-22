@@ -12,9 +12,11 @@ export enum Core {
 }
 
 export const core = ref<Core>(Core.Unknown)
+export const singBoxCapabilities = ref<string[]>([])
 
 export const resetCore = () => {
   core.value = Core.Unknown
+  singBoxCapabilities.value = []
 }
 
 const isNonMihomoCore = computed(
@@ -54,6 +56,7 @@ export type Cap =
   | 'metricsHistory'
   | 'backendEvents'
   | 'flows'
+  | 'dnsManagement'
   | 'dnsCache'
   | 'dnsLog'
   | 'dnsRules'
@@ -76,6 +79,7 @@ const clashCaps = computed<Caps>(() => {
   // evidence that the operation is supported.
   if (core.value === Core.SingBox) {
     return {
+      dnsManagement: singBoxCapabilities.value.includes('dns-management-v1'),
       dashboardUpgrade: true,
       modeSwitch: true,
       latencyTest: true,

@@ -1,3 +1,4 @@
+import { singBoxCapabilities } from '@/assembly/backend'
 import { TEST_URL } from '@/constant'
 import type { ProbeResult } from '@/helper/connectivity'
 import { getUrlFromBackend } from '@/helper/utils'
@@ -19,7 +20,12 @@ import ReconnectingWebSocket from 'reconnectingwebsocket'
 import { shallowRef } from 'vue'
 import './http'
 
-export const fetchClashVersion = () => axios.get<{ version: string }>('/version')
+export const fetchClashVersion = async () => {
+  const backend = activeBackend.value
+  const response = await axios.get<{ version: string; capabilities?: string[] }>('/version')
+  if (activeBackend.value === backend) singBoxCapabilities.value = response.data.capabilities ?? []
+  return response
+}
 
 export const fetchProxiesAPI = (url = TEST_URL) => {
   return axios.get<{ proxies: Record<string, Proxy> }>('/proxies', { params: { url } })

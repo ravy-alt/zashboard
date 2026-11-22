@@ -247,6 +247,7 @@ export enum ROUTE_NAME {
   overview = 'overview',
   proxies = 'proxies',
   connections = 'connections',
+  dns = 'dns',
   logs = 'logs',
   rules = 'rules',
   settings = 'settings',
@@ -259,6 +260,7 @@ export const ROUTE_ICON_MAP = {
   [ROUTE_NAME.connections]: ArrowsRightLeftIcon,
   [ROUTE_NAME.rules]: SwatchIcon,
   [ROUTE_NAME.logs]: DocumentTextIcon,
+  [ROUTE_NAME.dns]: GlobeAltIcon,
   [ROUTE_NAME.settings]: Cog6ToothIcon,
   [ROUTE_NAME.setup]: CubeTransparentIcon,
 }
