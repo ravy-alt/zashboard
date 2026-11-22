@@ -43,6 +43,7 @@ export type History = {
 
 export type Proxy = {
   'x-sing-box-revision'?: string
+  'x-sing-box-type'?: string
   id?: string
   name: string
   type: string

@@ -10,7 +10,7 @@
       class="text-base-content/40 min-w-0 flex-1 truncate text-[11px] tracking-wider uppercase tabular-nums"
       @mouseenter="checkTruncation"
     >
-      {{ proxyGroup.type }} · {{ proxiesCount }}
+      {{ proxyTypeLabel(proxyGroup) }} · {{ proxiesCount }}
     </span>
     <ProxyGroupFilter :group-name="name" />
     <VisibilityToggle
@@ -43,6 +43,7 @@ import { useKeyboardShortcuts } from '@/composables/use-keyboard'
 import { KEYBOARD_SHORTCUT_ACTION } from '@/helper/keyboard'
 import { getDownloadSpeedByProxyGroup } from '@/helper/proxy-group-traffic'
 import { isHiddenGroup } from '@/helper'
+import { proxyTypeLabel } from '@/helper/proxy-type'
 import { checkTruncation } from '@/helper/tooltip'
 import { useTooltip } from '@/composables/use-tooltip'
 import { prettyBytesHelper } from '@/helper/utils'

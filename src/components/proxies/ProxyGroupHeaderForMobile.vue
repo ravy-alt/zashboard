@@ -11,7 +11,7 @@
       :class="proxyGroup.icon && 'pr-12'"
     >
       <span class="shrink-0 tracking-wider whitespace-nowrap uppercase tabular-nums">
-        {{ proxyGroup.type }} · {{ proxiesCount }}
+        {{ proxyTypeLabel(proxyGroup) }} · {{ proxiesCount }}
       </span>
       <ProxyGroupFilter
         v-if="displayContent"
@@ -63,6 +63,7 @@ import { KEYBOARD_SHORTCUT_ACTION } from '@/helper/keyboard'
 import { getDownloadSpeedByProxyGroup } from '@/helper/proxy-group-traffic'
 import { isHiddenGroup } from '@/helper'
 import { proxyMap } from '@/assembly/proxies'
+import { proxyTypeLabel } from '@/helper/proxy-type'
 import { useTooltip } from '@/composables/use-tooltip'
 import { prettyBytesHelper } from '@/helper/utils'
 import { manageHiddenGroup, twoColumnProxyGroup } from '@/store/settings'

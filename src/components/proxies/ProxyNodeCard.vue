@@ -46,6 +46,7 @@
 import { smartWeightsMap } from '@/assembly/proxies'
 import { PROXY_CARD_SIZE, PROXY_SORT_TYPE } from '@/constant'
 import { checkTruncation } from '@/helper/tooltip'
+import { proxyTypeLabel } from '@/helper/proxy-type'
 import {
   highlightProxyNode,
   highlightedProxyNode,
@@ -78,7 +79,7 @@ const typeFormatter = (type: string) => {
 }
 const isSmallCard = computed(() => proxyCardSize.value === PROXY_CARD_SIZE.SMALL)
 const typeDescription = computed(() => {
-  const type = typeFormatter(node.value.type)
+  const type = typeFormatter(proxyTypeLabel(node.value))
   const smartUsage = smartWeightsMap.value[props.groupName ?? '']?.[props.name]
   const smartDesc = smartUsage ? t(smartUsage) : ''
   const isV6 = IPv6test.value && getIPv6ByName(node.value.name) ? 'IPv6' : ''

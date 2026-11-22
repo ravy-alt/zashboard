@@ -136,6 +136,28 @@ try {
     await actions.fetchProxies()
     check('an empty new-core URL bucket never falls back to legacy history',state.getLatencyByName('C')===NOT_CONNECTED)
     nodes.x.extra=savedExtra
+
+    // Native labels must reach desktop/mobile group headers and nested cards
+    // without opting sing-box groups into Mihomo's unrelated Smart APIs.
+    nodes.A.type='URLTest'; nodes.A['x-sing-box-type']='smart-urltest'
+    nodes.C['x-sing-box-type']='urltest'
+    calls=[]
+    await actions.fetchProxies()
+    check('native smart label preserves URLTest behavior', state.proxyMap.value.A.type==='URLTest' && state.proxyGroupList.value.includes('A') && !calls.some(c=>c.path.includes('/smart')))
+    const {default:Header} = await import('/src/components/proxies/ProxyGroupHeader.vue')
+    const {default:MobileHeader} = await import('/src/components/proxies/ProxyGroupHeaderForMobile.vue')
+    const labels = createApp({render:()=>h('div',['A','B','C'].flatMap(name=>[
+      h('div',{'data-label':name+'-desktop'},[h(Header,{name,proxiesCount:'2',isLatencyTesting:false})]),
+      h('div',{'data-label':name+'-mobile'},[h(MobileHeader,{name,proxiesCount:'2',isLatencyTesting:false,displayContent:false})]),
+      h('div',{'data-label':name+'-card'},[h(Card,{name,groupName:'A'})]),
+    ]))}).use(i18n)
+    labels.mount('#app'); await nextTick()
+    for (const view of ['desktop','mobile','card']) {
+      const text = name=>document.querySelector('[data-label="'+name+'-'+view+'"]').textContent.toLowerCase()
+      check(view+' displays native smart-urltest',text('A').includes('smart-urltest'))
+      check(view+' keeps legacy and ordinary URLTest labels',text('B').includes('urltest') && !text('B').includes('smart-urltest') && text('C').includes('urltest') && !text('C').includes('smart-urltest'))
+    }
+    labels.unmount()
     return results
   })()`)
   for (const name of results) console.log(`PASS ${name}`)
