@@ -174,10 +174,10 @@ export const clashDriver: Driver = {
   },
 
   proxies: {
-    fetch: async () => {
+    fetch: async (url) => {
       const [proxyRes, providerRes] = await Promise.all([
-        fetchProxiesAPI(),
-        fetchProxyProviderAPI(),
+        fetchProxiesAPI(url),
+        fetchProxyProviderAPI(url),
       ])
 
       return {
@@ -196,7 +196,8 @@ export const clashDriver: Driver = {
     testGroup: async (group, url, timeout) =>
       (await fetchProxyGroupLatencyAPI(group, url, timeout)).data,
     updateProvider: (name) => done(updateProxyProviderAPI(name)),
-    healthCheckProvider: (name) => done(proxyProviderHealthCheckAPI(name)),
+    healthCheckProvider: (name, url, timeout) =>
+      done(proxyProviderHealthCheckAPI(name, url, timeout)),
     fetchSmartWeights: async () => (await fetchSmartWeightsAPI()).data.weights,
     flushSmartWeights: () => done(flushSmartGroupWeightsAPI()),
   },

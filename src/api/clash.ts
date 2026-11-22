@@ -1,3 +1,4 @@
+import { TEST_URL } from '@/constant'
 import type { ProbeResult } from '@/helper/connectivity'
 import { getUrlFromBackend } from '@/helper/utils'
 import { activeBackend } from '@/store/setup'
@@ -20,8 +21,8 @@ import './http'
 
 export const fetchClashVersion = () => axios.get<{ version: string }>('/version')
 
-export const fetchProxiesAPI = () => {
-  return axios.get<{ proxies: Record<string, Proxy> }>('/proxies')
+export const fetchProxiesAPI = (url = TEST_URL) => {
+  return axios.get<{ proxies: Record<string, Proxy> }>('/proxies', { params: { url } })
 }
 
 export const selectProxyAPI = (proxyGroup: string, name: string) => {
@@ -67,19 +68,22 @@ export const fetchProxyGroupLatencyAPI = (proxyName: string, url: string, timeou
   })
 }
 
-export const fetchProxyProviderAPI = () => {
-  return axios.get<{ providers: Record<string, ProxyProvider> }>('/providers/proxies')
+export const fetchProxyProviderAPI = (url = TEST_URL) => {
+  return axios.get<{ providers: Record<string, ProxyProvider> }>('/providers/proxies', {
+    params: { url },
+  })
 }
 
 export const updateProxyProviderAPI = (name: string) => {
   return axios.put(`/providers/proxies/${encodeURIComponent(name)}`)
 }
 
-export const proxyProviderHealthCheckAPI = (name: string) => {
+export const proxyProviderHealthCheckAPI = (name: string, url = TEST_URL, timeout = 5000) => {
   return axios.get<Record<string, number>>(
     `/providers/proxies/${encodeURIComponent(name)}/healthcheck`,
     {
-      timeout: 15000,
+      params: { url, timeout },
+      timeout: timeout + 1000,
     },
   )
 }

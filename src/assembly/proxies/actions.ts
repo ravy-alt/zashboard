@@ -2,11 +2,19 @@ import { activeConnections, connectionAccessor, disconnectById } from '@/assembl
 import { driver } from '@/assembly/driver'
 import { GLOBAL, PROXY_TYPE } from '@/constant'
 import { notifyRequestError } from '@/helper/request-error'
-import { automaticDisconnection, iconReflectList } from '@/store/settings'
+import { automaticDisconnection, iconReflectList, speedtestTimeout } from '@/store/settings'
 
 import type { Proxy } from '@/types'
 import { initSmartWeights } from './smart'
-import { ipv6Cache, proxyGroupList, proxyMap, proxyProviederList, reconcileIPv6 } from './state'
+import {
+  getTestUrl,
+  ipv6Cache,
+  proxyGroupList,
+  proxyMap,
+  proxyProviederList,
+  reconcileIPv6,
+  speedtestUrlWithDefault,
+} from './state'
 
 let fetchSequence = 0
 let latestFetch = Promise.resolve()
@@ -27,7 +35,7 @@ const fetchProxySnapshot = async () => {
   const sequence = ++fetchSequence
   const session = ipv6Cache.session
 
-  const { proxies, providers } = await driver().proxies.fetch()
+  const { proxies, providers } = await driver().proxies.fetch(speedtestUrlWithDefault.value)
 
   if (fetchSequence !== sequence || ipv6Cache.session !== session) {
     return
@@ -120,7 +128,8 @@ export const handlerProxySelect = async (proxyGroupName: string, proxyName: stri
 
 export const updateProxyProvider = (name: string) => driver().proxies.updateProvider(name)
 
-export const proxyProviderHealthCheck = (name: string) => driver().proxies.healthCheckProvider(name)
+export const proxyProviderHealthCheck = (name: string) =>
+  driver().proxies.healthCheckProvider(name, getTestUrl(name), speedtestTimeout.value)
 
 export const fetchSmartWeights = () => driver().proxies.fetchSmartWeights()
 

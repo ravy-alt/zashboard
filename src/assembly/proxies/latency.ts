@@ -1,4 +1,4 @@
-import { can } from '@/assembly/backend'
+import { can, core, Core } from '@/assembly/backend'
 import { driver } from '@/assembly/driver'
 import { IPV6_TEST_URL, NOT_CONNECTED, PROXY_TYPE, SPEEDTEST_MODE } from '@/constant'
 import { isProxyGroup } from '@/helper'
@@ -37,10 +37,10 @@ const latencyTestForSingle = async (proxyName: string, url: string, timeout: num
   const now = getNowProxyNodeName(proxyName)
   const session = ipv6Cache.session
 
-  if (IPv6test.value) {
+  if (IPv6test.value && proxyMap.value[now] && !proxyMap.value[now].all) {
     const ticket = ipv6Cache.begin(now)
     try {
-      const delay = await testNodeLatency(now, IPV6_TEST_URL, 2000)
+      const delay = await testNodeLatency(now, IPV6_TEST_URL, timeout)
       await fetchProxies()
       finishIPv6Probe(ticket, delay > NOT_CONNECTED)
     } catch {
@@ -50,7 +50,11 @@ const latencyTestForSingle = async (proxyName: string, url: string, timeout: num
 
   if (session !== ipv6Cache.session) throw new Error('Backend changed during latency test')
 
-  return await testNodeLatency(independentLatencyEnabled.value ? proxyName : now, url, timeout)
+  return await testNodeLatency(
+    independentLatencyEnabled.value || core.value === Core.SingBox ? proxyName : now,
+    url,
+    timeout,
+  )
 }
 
 const getNameForNotification = (name: string, url: string) => {
@@ -63,7 +67,7 @@ const getNameForNotification = (name: string, url: string) => {
 
 export const proxyLatencyTest = async (
   proxyName: string,
-  url = speedtestUrlWithDefault.value,
+  url = getTestUrl(proxyMap.value[proxyName]?.all ? proxyName : undefined),
   timeout = speedtestTimeout.value,
 ) => {
   if (!can('latencyTest')) return
@@ -84,6 +88,7 @@ export const proxyLatencyTest = async (
 }
 
 const setHistory = (proxyName: string, delay: number, groupName?: string) => {
+  if (core.value === Core.SingBox) return // The core stores the actual leaf; never guess from a possibly changed selection.
   const history = getHistoryByName(proxyName, groupName)
 
   history.push({
@@ -111,11 +116,7 @@ const testLatencyOneByOneWithTip = async (
       limiter(async () => {
         if (session !== ipv6Cache.session) return
         try {
-          const delay = await latencyTestForSingle(
-            name,
-            url,
-            Math.min(2000, speedtestTimeout.value),
-          )
+          const delay = await latencyTestForSingle(name, url, speedtestTimeout.value)
 
           if (session === ipv6Cache.session) setHistory(name, delay, groupName)
         } catch {
@@ -181,9 +182,31 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
     return testLatencyOneByOneWithTip(proxyGroupName, all, url, proxyGroupName)
   }
 
-  const timeout = Math.max(5000, speedtestTimeout.value)
+  const timeout = speedtestTimeout.value
 
-  if (IPv6test.value) {
+  if (IPv6test.value && core.value === Core.SingBox) {
+    // An IPv6 badge belongs to a specific leaf, never to a Smart group's
+    // fallback response. Pin and deduplicate the selected leaves first.
+    const leaves = [...new Set(all.map(getNowProxyNodeName))].filter(
+      (name) => proxyMap.value[name] && !proxyMap.value[name].all,
+    )
+    const limit = pLimit(5)
+    await Promise.allSettled(
+      leaves.map((name) =>
+        limit(async () => {
+          if (session !== ipv6Cache.session) return
+          const ticket = ipv6Cache.begin(name)
+          try {
+            const delay = await testNodeLatency(name, IPV6_TEST_URL, timeout)
+            await fetchProxies()
+            finishIPv6Probe(ticket, delay > NOT_CONNECTED)
+          } catch {
+            finishIPv6Probe(ticket, false)
+          }
+        }),
+      ),
+    )
+  } else if (IPv6test.value) {
     const tickets = all.map((name) => [name, ipv6Cache.begin(getNowProxyNodeName(name))] as const)
     try {
       const ipv6LatencyResult = await driver().proxies.testGroup(
@@ -236,7 +259,7 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
 export const allProxiesLatencyTest = async () => {
   if (!can('latencyTest')) return
 
-  if (independentLatencyEnabled.value || !can('nodeLatencyTest')) {
+  if (independentLatencyEnabled.value || core.value === Core.SingBox || !can('nodeLatencyTest')) {
     const limit = pLimit(3)
 
     return await Promise.all(

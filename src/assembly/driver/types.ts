@@ -120,14 +120,14 @@ export interface EventsDriver {
 }
 
 export interface ProxiesDriver {
-  fetch(): Promise<ProxiesPayload>
+  fetch(url?: string): Promise<ProxiesPayload>
   select(group: string, name: string): Promise<void>
   clearFixed(group: string): Promise<void>
   testNode(name: string, url: string, timeout: number): Promise<number>
   testProviderNode(provider: string, name: string, url: string, timeout: number): Promise<number>
   testGroup(group: string, url: string, timeout: number): Promise<Record<string, number>>
   updateProvider(name: string): Promise<void>
-  healthCheckProvider(name: string): Promise<void>
+  healthCheckProvider(name: string, url: string, timeout: number): Promise<void>
   fetchSmartWeights(): Promise<Record<string, NodeRank[]>>
   flushSmartWeights(): Promise<void>
 }

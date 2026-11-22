@@ -1,4 +1,4 @@
-import { can } from '@/assembly/backend'
+import { can, core, Core } from '@/assembly/backend'
 import { NOT_CONNECTED, PROXY_TYPE, TEST_URL } from '@/constant'
 import { groupTestUrls, independentLatencyTest, speedtestUrl } from '@/store/settings'
 import { activeBackend } from '@/store/setup'
@@ -14,6 +14,7 @@ import {
   type MaybeRefOrGetter,
 } from 'vue'
 import { IPv6Cache, ipv6Identities, type IPv6Probe } from './ipv6-cache'
+import { scopedHistory, selectedLeafName } from './latency-history'
 
 export const proxyGroupList = ref<string[]>([])
 export const proxyMap = ref<Record<string, Proxy>>({})
@@ -52,7 +53,7 @@ export const finishIPv6Probe = (ticket: IPv6Probe | undefined, supported: boolea
 export type LatencyMap = Map<string, number>
 
 export const speedtestUrlWithDefault = computed(() => {
-  return speedtestUrl.value || TEST_URL
+  return speedtestUrl.value.trim() || TEST_URL
 })
 
 export const independentLatencyEnabled = computed(
@@ -60,20 +61,20 @@ export const independentLatencyEnabled = computed(
 )
 
 export const getTestUrl = (groupName?: string) => {
-  if (!groupName || !independentLatencyEnabled.value) {
+  if (!groupName || (!independentLatencyEnabled.value && core.value !== Core.SingBox)) {
     return speedtestUrlWithDefault.value
   }
 
   const groupTestUrl = groupTestUrls.value.find((item) => item.name === groupName)
 
   if (groupTestUrl) {
-    return groupTestUrl.url
+    return groupTestUrl.url.trim() || speedtestUrlWithDefault.value
   }
 
   const proxyNode =
     proxyMap.value[groupName] || proxyProviederList.value.find((p) => p.name === groupName)
 
-  return proxyNode?.testUrl || speedtestUrlWithDefault.value
+  return proxyNode?.testUrl?.trim() || speedtestUrlWithDefault.value
 }
 
 export const getLatencyFromHistory = (history?: Proxy['history']) => {
@@ -85,6 +86,16 @@ const DEFAULT_TEST_URL_BUCKET = ''
 const latencyMapCache = new Map<string, ComputedRef<LatencyMap>>()
 
 const readHistory = (proxyName: string, testUrl: string) => {
+  if (core.value === Core.SingBox) {
+    const url = testUrl || getTestUrl(proxyMap.value[proxyName]?.all ? proxyName : undefined)
+    const leaf = selectedLeafName(proxyMap.value, proxyName)
+    // Older sing-box versions expose only the legacy, unscoped history.
+    // A present extra map (even empty) opts into strict URL isolation.
+    if (leaf && proxyMap.value[leaf].extra === undefined) {
+      return proxyMap.value[leaf].history
+    }
+    return scopedHistory(proxyMap.value, proxyName, url)
+  }
   const proxyNode = proxyMap.value[proxyName]
 
   if (testUrl !== DEFAULT_TEST_URL_BUCKET) {
@@ -124,7 +135,7 @@ const getLatencyMap = (testUrl: string) => {
 }
 
 const getTestUrlBucket = (groupName?: string) => {
-  if (groupName && independentLatencyEnabled.value) {
+  if (groupName && (independentLatencyEnabled.value || core.value === Core.SingBox)) {
     return getTestUrl(groupName)
   }
 
@@ -139,6 +150,9 @@ export const getLatencyByName = (proxyName: string, groupName?: string) => {
 }
 
 export const getHistoryByName = (proxyName: string, groupName?: string) => {
+  if (core.value === Core.SingBox) {
+    return readHistory(proxyName, getTestUrlBucket(groupName)) ?? []
+  }
   if (groupName && independentLatencyEnabled.value) {
     const proxyNode = proxyMap.value[proxyName]
     const url = getTestUrl(groupName)
@@ -172,25 +186,7 @@ export const getIPv6ByName = (proxyName: string) => {
   return IPv6Map.value[getNowProxyNodeName(proxyName)]
 }
 
-export const getNowProxyNodeName = (name: string) => {
-  let node = proxyMap.value[name]
-
-  if (!name || !node) {
-    return name
-  }
-
-  while (node.now && node.now !== node.name) {
-    const nextNode = proxyMap.value[node.now]
-
-    if (!nextNode) {
-      return node.name
-    }
-
-    node = nextNode
-  }
-
-  return node.name
-}
+export const getNowProxyNodeName = (name: string) => selectedLeafName(proxyMap.value, name) ?? name
 
 export const getProxyGroupChains = (name: string) => {
   let proxyNode = proxyMap.value[name]
@@ -204,7 +200,8 @@ export const getProxyGroupChains = (name: string) => {
   while (
     proxyNode.now &&
     proxyNode.now !== proxyNode.name &&
-    proxyGroupList.value.includes(proxyNode.now)
+    proxyGroupList.value.includes(proxyNode.now) &&
+    !result.includes(proxyNode.now)
   ) {
     result.push(proxyNode.now)
     proxyNode = proxyMap.value[proxyNode.now]
