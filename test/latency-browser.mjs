@@ -137,13 +137,20 @@ try {
     check('an empty new-core URL bucket never falls back to legacy history',state.getLatencyByName('C')===NOT_CONNECTED)
     nodes.x.extra=savedExtra
 
-    // Native labels must reach desktop/mobile group headers and nested cards
-    // without opting sing-box groups into Mihomo's unrelated Smart APIs.
-    nodes.A.type='URLTest'; nodes.A['x-sing-box-type']='smart-urltest'
-    nodes.C['x-sing-box-type']='urltest'
+    // SmartURLTest is a group type of its own, with core-managed probes and
+    // no dependency on Mihomo's unrelated Smart APIs.
+    nodes.A.type='SmartURLTest'
     calls=[]
     await actions.fetchProxies()
-    check('native smart label preserves URLTest behavior', state.proxyMap.value.A.type==='URLTest' && state.proxyGroupList.value.includes('A') && !calls.some(c=>c.path.includes('/smart')))
+    check('SmartURLTest is recognized without requesting Mihomo Smart APIs', state.proxyGroupList.value.includes('A') && !state.hasSmartGroup.value && !calls.some(c=>c.path.includes('/smart')))
+    const {isProxyGroup} = await import('/src/helper/index.ts')
+    const members=nodes.A.all
+    nodes.A.all=[]; await actions.fetchProxies()
+    check('empty SmartURLTest retains group identity',isProxyGroup('A'))
+    nodes.A.all=members; await actions.fetchProxies()
+    calls=[]; settings.IPv6test.value=false
+    await latency.proxyGroupLatencyTest('A')
+    check('SmartURLTest uses core group probes with its configured URL',calls.some(c=>c.path==='/group/A/delay' && c.params.url===nodes.A.testUrl && c.params.timeout===6789))
     const {default:Header} = await import('/src/components/proxies/ProxyGroupHeader.vue')
     const {default:MobileHeader} = await import('/src/components/proxies/ProxyGroupHeaderForMobile.vue')
     const labels = createApp({render:()=>h('div',['A','B','C'].flatMap(name=>[
@@ -154,8 +161,8 @@ try {
     labels.mount('#app'); await nextTick()
     for (const view of ['desktop','mobile','card']) {
       const text = name=>document.querySelector('[data-label="'+name+'-'+view+'"]').textContent.toLowerCase()
-      check(view+' displays native smart-urltest',text('A').includes('smart-urltest'))
-      check(view+' keeps legacy and ordinary URLTest labels',text('B').includes('urltest') && !text('B').includes('smart-urltest') && text('C').includes('urltest') && !text('C').includes('smart-urltest'))
+      check(view+' displays SmartURLTest from type',text('A').includes('smarturltest'))
+      check(view+' keeps ordinary URLTest labels',text('B').includes('urltest') && !text('B').includes('smarturltest') && text('C').includes('urltest') && !text('C').includes('smarturltest'))
     }
     labels.unmount()
     return results
