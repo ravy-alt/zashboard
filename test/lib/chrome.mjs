@@ -47,12 +47,26 @@ export const launchChrome = async ({ port = 9222, headless = true, args = [] } =
       ...args,
       'about:blank',
     ].filter(Boolean),
-    { stdio: 'ignore' },
+    { stdio: ['ignore', 'ignore', 'pipe'] },
   )
 
-  for (let i = 0; i < 100; i++) {
+  let startupError
+  let stderr = ''
+  child.once('error', (error) => {
+    startupError = error
+  })
+  child.stderr.on('data', (chunk) => {
+    stderr = (stderr + chunk.toString()).slice(-8192)
+  })
+
+  for (let i = 0; i < 300; i++) {
+    if (startupError || child.exitCode !== null || child.signalCode !== null) break
     try {
-      await fetch(`http://127.0.0.1:${port}/json/version`)
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+        signal: AbortSignal.timeout(1000),
+      })
+      if (!response.ok || !(await response.json()).webSocketDebuggerUrl)
+        throw new Error('DevTools not ready')
       return {
         async close() {
           // 等进程真的退出再删 user-data-dir,否则 Chrome 还在写文件,rmdir 会 ENOTEMPTY;
@@ -72,7 +86,13 @@ export const launchChrome = async ({ port = 9222, headless = true, args = [] } =
     }
   }
 
-  child.kill()
-  await rm(userDataDir, { recursive: true, force: true })
-  throw new Error(`Chrome 起来了但 ${port} 端口的调试接口没响应`)
+  if (child.exitCode === null && child.signalCode === null && !startupError) {
+    const exited = new Promise((resolve) => child.once('exit', resolve))
+    child.kill()
+    await Promise.race([exited, sleep(3000)])
+  }
+  await rm(userDataDir, { recursive: true, force: true }).catch(() => {})
+  throw new Error(
+    `Chrome DevTools unavailable on ${port}; executable=${binary}; exit=${child.exitCode}; signal=${child.signalCode}; error=${startupError?.message ?? 'startup timeout'}\n${stderr}`,
+  )
 }
