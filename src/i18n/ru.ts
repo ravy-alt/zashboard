@@ -1,12 +1,6 @@
 import type { LANG_MESSAGE } from './en'
 
 const ru: LANG_MESSAGE = {
-  udpProbe: {
-    test: 'Проверить UDP',
-    passed: 'DNS-запрос UDP выполнен',
-    failed: 'Ошибка DNS-запроса UDP',
-    unknown: 'UDP не проверен',
-  },
   dns: 'DNS',
   dnsPage: {
     finalHint: 'Используется, если ни одно правило DNS не совпало',

@@ -31,12 +31,6 @@
       >
         {{ typeDescription }}
       </span>
-      <UDPTag
-        :name="node.name"
-        :group-name="groupName"
-        :active="active"
-        class="mx-1"
-      />
       <LatencyTag
         :class="[isSmallCard && 'h-4! w-8! rounded-md!', 'shrink-0']"
         :name="node.name"
@@ -64,7 +58,7 @@ import { computed, inject, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LatencyTag from './LatencyTag.vue'
 import ProxyIcon from './ProxyIcon.vue'
-import UDPTag from './UDPTag.vue'
+import { getUDPLabel } from '@/assembly/proxies/udp'
 
 const { t } = useI18n()
 const props = defineProps<{
@@ -89,7 +83,9 @@ const typeDescription = computed(() => {
   const smartUsage = smartWeightsMap.value[props.groupName ?? '']?.[props.name]
   const smartDesc = smartUsage ? t(smartUsage) : ''
   const isV6 = IPv6test.value && getIPv6ByName(node.value.name) ? 'IPv6' : ''
-  return [type, smartDesc, isV6].filter(Boolean).join(isSmallCard.value ? '/' : ' / ')
+  const isUDP = getUDPLabel(node.value.name, props.groupName)
+
+  return [type, isUDP, smartDesc, isV6].filter(Boolean).join(isSmallCard.value ? '/' : ' / ')
 })
 
 const scrollNodeIntoView = inject(scrollNodeIntoViewKey, null)

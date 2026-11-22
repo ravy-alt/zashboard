@@ -1,5 +1,5 @@
 import '@/api/http'
-import { can } from '@/assembly/backend'
+import { can, core, Core } from '@/assembly/backend'
 import type { UDPTestOptions, UDPTestResult } from '@/types'
 import axios from 'axios'
 import pLimit from 'p-limit'
@@ -34,6 +34,12 @@ export const getUDPResult = (name: string, groupName?: string) => {
   return Object.values(proxyMap.value[leaf]?.udpHistory ?? {}).find(
     (result) => result.outbound === leaf && profileKey(result) === expected,
   )
+}
+
+export const getUDPLabel = (name: string, groupName?: string) => {
+  const node = proxyMap.value[name]
+  const available = core.value === Core.SingBox ? getUDPResult(name, groupName)?.alive : node?.udp
+  return available ? (node?.xudp ? 'xudp' : 'udp') : ''
 }
 
 // Results live in the core's leaf-scoped history. Never attach a response to

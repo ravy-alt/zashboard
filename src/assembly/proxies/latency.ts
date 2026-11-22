@@ -7,7 +7,7 @@ import { notifyRequestError } from '@/helper/request-error'
 import { i18n } from '@/i18n'
 import { IPv6test, speedtestMode, speedtestTimeout } from '@/store/settings'
 import pLimit from 'p-limit'
-import { fetchProxies } from './actions'
+import { fetchProxies, testUDPInBackground } from './actions'
 import {
   finishIPv6Probe,
   getHistoryByName,
@@ -22,7 +22,6 @@ import {
   proxyMap,
   speedtestUrlWithDefault,
 } from './state'
-import { testGroupUDP, testUDP } from './udp'
 
 const testNodeLatency = (proxyName: string, url: string, timeout: number) => {
   const providerName = getProviderNameByProxy(proxyName)
@@ -56,15 +55,12 @@ const latencyTestForSingle = async (
 
   if (session !== ipv6Cache.session) throw new Error('Backend changed during latency test')
 
-  const tcp = testNodeLatency(
+  testUDPInBackground([proxyName], groupName)
+  return testNodeLatency(
     independentLatencyEnabled.value || core.value === Core.SingBox ? proxyName : now,
     url,
     timeout,
   )
-  const results = await Promise.allSettled([tcp, testUDP(proxyName, groupName)])
-  const tcpResult = results[0]
-  if (tcpResult.status === 'rejected') throw tcpResult.reason
-  return tcpResult.value
 }
 
 const getNameForNotification = (name: string, url: string) => {
@@ -242,11 +238,8 @@ export const proxyGroupLatencyTest = async (proxyGroupName: string) => {
   }
   if (session !== ipv6Cache.session) return
   try {
-    const results = await Promise.allSettled([
-      driver().proxies.testGroup(proxyGroupName, url, timeout),
-      testGroupUDP(all, proxyGroupName),
-    ])
-    if (results[0].status === 'rejected') throw results[0].reason
+    testUDPInBackground(all, proxyGroupName)
+    await driver().proxies.testGroup(proxyGroupName, url, timeout)
   } catch (e) {
     notifyRequestError(e)
     return

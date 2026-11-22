@@ -1,12 +1,6 @@
 import type { LANG_MESSAGE } from './en'
 
 const zhTW: LANG_MESSAGE = {
-  udpProbe: {
-    test: '點擊測試 UDP',
-    passed: 'UDP DNS 查詢成功',
-    failed: 'UDP DNS 查詢失敗',
-    unknown: 'UDP 尚未測試',
-  },
   dns: 'DNS',
   dnsPage: {
     finalHint: '未符合 DNS 規則時使用',

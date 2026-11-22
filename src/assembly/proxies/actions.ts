@@ -1,3 +1,4 @@
+import { can } from '@/assembly/backend'
 import { activeConnections, connectionAccessor, disconnectById } from '@/assembly/connections'
 import { driver } from '@/assembly/driver'
 import { GLOBAL, PROXY_TYPE } from '@/constant'
@@ -145,15 +146,30 @@ export const proxyProviderHealthCheck = async (name: string) => {
     proxyProviederList.value
       .find((provider) => provider.name === name)
       ?.proxies.map((node) => node.name) ?? []
-  const results = await Promise.allSettled([
-    driver().proxies.healthCheckProvider(name, getTestUrl(name), speedtestTimeout.value),
-    testGroupUDP(nodes),
-  ])
-  await fetchProxies()
-  if (results[0].status === 'rejected') throw results[0].reason
-  return results[0].value
+  testUDPInBackground(nodes)
+  try {
+    return await driver().proxies.healthCheckProvider(
+      name,
+      getTestUrl(name),
+      speedtestTimeout.value,
+    )
+  } finally {
+    await fetchProxies()
+  }
 }
 
 export const fetchSmartWeights = () => driver().proxies.fetchSmartWeights()
 
 export const flushSmartGroupWeights = () => driver().proxies.flushSmartWeights()
+
+// UDP updates only its capability label. TCP latency and loading do not wait
+// for a missing UDP response, and an old backend cannot trigger a new fetch.
+export const testUDPInBackground = (names: string[], groupName?: string) => {
+  if (!can('udpProbe')) return
+  const session = ipv6Cache.session
+  void testGroupUDP(names, groupName)
+    .then(() => {
+      if (session === ipv6Cache.session) return fetchProxies()
+    })
+    .catch(() => {})
+}
