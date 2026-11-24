@@ -76,6 +76,12 @@ export type UDPTestOptions = {
   timeout: number
 }
 
+export type UDPTestSkipped = {
+  skipped: true
+  reason: 'udp_not_supported'
+  outbound: string
+}
+
 export type UDPTestResult = UDPTestOptions & {
   time: string
   delay: number

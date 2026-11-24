@@ -1,6 +1,6 @@
 import '@/api/http'
 import { can, core, Core } from '@/assembly/backend'
-import type { UDPTestOptions, UDPTestResult } from '@/types'
+import type { UDPTestOptions, UDPTestResult, UDPTestSkipped } from '@/types'
 import axios from 'axios'
 import pLimit from 'p-limit'
 import { getNowProxyNodeName, ipv6Cache, proxyMap } from './state'
@@ -30,6 +30,7 @@ const profileKey = (options: UDPTestOptions) =>
 export const getUDPResult = (name: string, groupName?: string) => {
   if (!can('udpProbe')) return
   const leaf = getNowProxyNodeName(name)
+  if (proxyMap.value[leaf]?.udp !== true) return
   const expected = profileKey(getUDPTestOptions(name, groupName))
   return Object.values(proxyMap.value[leaf]?.udpHistory ?? {}).find(
     (result) => result.outbound === leaf && profileKey(result) === expected,
@@ -48,7 +49,7 @@ export const testUDP = (name: string, groupName?: string): Promise<void> => {
   if (!can('udpProbe')) return Promise.resolve()
   const leaf = getNowProxyNodeName(name)
   const node = proxyMap.value[leaf]
-  if (!node || node.all !== undefined) return Promise.resolve()
+  if (!node || node.all !== undefined || node.udp !== true) return Promise.resolve()
   const options = getUDPTestOptions(name, groupName)
   const session = ipv6Cache.session
   const revision = node['x-sing-box-revision']
@@ -56,12 +57,19 @@ export const testUDP = (name: string, groupName?: string): Promise<void> => {
   const existing = pending.get(key)
   if (existing) return existing
   const request = limit(async () => {
-    if (session !== ipv6Cache.session || proxyMap.value[leaf]?.['x-sing-box-revision'] !== revision)
+    if (
+      session !== ipv6Cache.session ||
+      proxyMap.value[leaf]?.['x-sing-box-revision'] !== revision ||
+      proxyMap.value[leaf]?.udp !== true
+    )
       return
-    await axios.get<UDPTestResult>(`/proxies/${encodeURIComponent(leaf)}/udp-delay`, {
-      params: options,
-      timeout: options.timeout + 2000,
-    })
+    await axios.get<UDPTestResult | UDPTestSkipped>(
+      `/proxies/${encodeURIComponent(leaf)}/udp-delay`,
+      {
+        params: options,
+        timeout: options.timeout + 2000,
+      },
+    )
   }).finally(() => {
     pending.delete(key)
   })
